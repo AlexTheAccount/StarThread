@@ -1,0 +1,16 @@
+﻿{
+	"version": 10,
+	"cmakeMinimumRequired": { "major": 4, "minor": 2, "patch": 1 },
+	"configurePresets":
+	[
+		{
+			"name": "vs2026-x64",
+			"displayName": "Default vs2026-x64 CMakeSettings",
+			"description": "Built using Visual Studio 18 2026",
+			"generator": "Visual Studio 18 2026",
+			"architecture": "x64",
+			"binaryDir": "${sourceDir}/build",
+			"cacheVariables": { "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL" }
+		}
+	]
+}
