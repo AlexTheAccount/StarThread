@@ -16,6 +16,15 @@ target_include_directories(StarThread PRIVATE
     ${CMAKE_SOURCE_DIR}/Source
 )
 
+# Organize files into filter in Visual Studio solution explorer
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${SOURCE_FILES})
+
+# swaps "ALL_BUILD" with project as startup project
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT StarThread)
+
+# add a preprocessor definition so target architecture can be detected
+target_compile_definitions(StarThread PRIVATE _AMD64_)
+
 # tells visual studio to launch from the binary output directory
 set_target_properties(StarThread PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>"
