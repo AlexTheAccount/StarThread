@@ -1,0 +1,179 @@
+#pragma once
+#include <cstdint>
+#include <optional>
+#include "..\gateware-26.33.16\Gateware.h"
+
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
+#include <vector>
+#include <string>
+
+namespace RENDERING
+{
+    //*** TAGS ***//
+    struct RenderableTag {};
+    
+    //*** COMPONENTS ***//
+    struct Transform
+    {
+        GW::MATH::GVECTORF position{{{0.0f, 0.0f, 0.0f, 0.0f}}};
+        GW::MATH::GVECTORF rotation{{{0.0f, 0.0f, 0.0f, 0.0f}}};
+        GW::MATH::GVECTORF scale{{{1.0f, 1.0f, 1.0f, 0.0f}}};
+    };
+    struct MeshHandle { uint32_t id = UINT32_MAX; };
+    struct TextureHandle { uint32_t id = UINT32_MAX; };
+
+    struct Material
+    {
+        GW::MATH::GVECTORF baseColor{{{1.0f, 1.0f, 1.0f, 1.0f}}};
+        TextureHandle albedoTexture;
+        uint32_t shaderIndex = 0;
+    };
+
+    struct Camera
+    {
+        GW::MATH::GMATRIXF view{};
+        GW::MATH::GMATRIXF projection{};
+    };
+
+    struct RendererComponent
+    {
+        GLFWwindow* window = nullptr;
+
+        VkInstance instance = VK_NULL_HANDLE;
+        VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+        VkDevice device = VK_NULL_HANDLE;
+        VkQueue graphicsQueue = VK_NULL_HANDLE;
+        VkQueue presentQueue = VK_NULL_HANDLE;
+        VkSurfaceKHR surface = VK_NULL_HANDLE;
+
+        VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+        VkFormat swapchainImageFormat;
+        VkExtent2D swapchainExtent;
+        std::vector<VkImage> swapchainImages;
+        std::vector<VkImageView> swapchainImageViews;
+        std::vector<VkFramebuffer> swapchainFramebuffers;
+
+        VkRenderPass renderPass = VK_NULL_HANDLE;
+        VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+        VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+
+        VkCommandPool commandPool = VK_NULL_HANDLE;
+        std::vector<VkCommandBuffer> commandBuffers;
+
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+
+        // sync
+        std::vector<VkSemaphore> imageAvailableSemaphores;
+        std::vector<VkSemaphore> renderFinishedSemaphores;
+        std::vector<VkFence> inFlightFences;
+        std::vector<VkFence> imagesInFlight;
+        size_t currentFrame = 0;
+
+        VkBuffer uniformBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
+        VkSampler textureSampler = VK_NULL_HANDLE;
+        VkImage textureImage = VK_NULL_HANDLE;
+        VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+        VkImageView textureImageView = VK_NULL_HANDLE;
+
+        // Depth resources
+        VkImage depthImage = VK_NULL_HANDLE;
+        VkDeviceMemory depthImageMemory = VK_NULL_HANDLE;
+        VkImageView depthImageView = VK_NULL_HANDLE;
+
+        const int MAX_FRAMES_IN_FLIGHT = 2;
+        bool framebufferResized = false;
+
+        GLFWwindow* GetWindow() const { return window; }
+    };
+
+    // *** FUNCTIONS *** //
+
+    // *** RENDERER HELPERS *** //
+    namespace RENDERER_HELPERS
+    {
+        // Top-level lifecycle
+        bool Initialize(uint32_t width, uint32_t height, const char* title);
+        void MainLoop();
+        void Cleanup();
+        void UpdateUniforms(const void* data, size_t size);
+        void Render();
+
+        // Window initialization
+        bool InitializeWindow(uint32_t width, uint32_t height, const char* title); 
+        void FramebufferResize(GLFWwindow* window, int width, int height);
+
+        // Draw frame
+        void DrawFrame();
+        void DrawFrameFor(RendererComponent& rendererComponent);
+
+        // Device-level helpers
+        namespace Device
+        {
+            struct QueueFamilyIndices
+            {
+                std::optional<uint32_t> graphicsFamily;
+                std::optional<uint32_t> presentFamily;
+
+                bool IsComplete() const { return graphicsFamily.has_value() && presentFamily.has_value(); }
+            };
+
+            QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+            bool CreateInstanceFor(RendererComponent& rendererComponent);
+            bool CreateSurfaceFor(RendererComponent& rendererComponent);
+            bool PickPhysicalDeviceFor(RendererComponent& rendererComponent);
+            bool CreateLogicalDeviceFor(RendererComponent& rendererComponent);
+        }
+
+        // Swapchain & image views
+        namespace Swapchain
+        {
+            bool CreateSwapchainFor(RendererComponent& rendererComponent);
+            bool CreateImageViewsFor(RendererComponent& rendererComponent);
+            bool CreateFramebuffersFor(RendererComponent& rendererComponent);
+            void RecreateSwapchainFor(RendererComponent& rendererComponent);
+        }
+
+        // Memory and buffer utilities
+        namespace Memory
+        {
+            uint32_t FindMemoryTypeFor(RendererComponent& rendererComponent, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+            void CreateBufferFor(RendererComponent& rendererComponent, VkDeviceSize size, VkBufferUsageFlags usage,
+                                 VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+            VkCommandBuffer BeginSingleTimeCommandsFor(RendererComponent& rendererComponent);
+            void EndSingleTimeCommandsFor(RendererComponent& rendererComponent, VkCommandBuffer commandBuffer);
+        }
+
+        // Image / texture utilities
+        namespace Image
+        {
+            void CreateImageFor(RendererComponent& rendererComponent, uint32_t width, uint32_t height, VkFormat format,
+                                VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+                                VkImage& image, VkDeviceMemory& imageMemory);
+            VkImageView CreateImageViewForTextureFor(RendererComponent& rendererComponent, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+            void TransitionImageLayoutFor(RendererComponent& rendererComponent, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+            void CopyBufferToImageFor(RendererComponent& rendererComponent, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+            bool CreateTextureFromPixelsFor(RendererComponent& rendererComponent, const void* pixels, uint32_t textureWidth, uint32_t textureHeight, VkFormat format);
+        }
+
+        // Pipeline, render pass, shaders
+        namespace Pipeline
+        {
+            bool CreateRenderPassFor(RendererComponent& rendererComponent);
+            bool CreateGraphicsPipelineFor(RendererComponent& rendererComponent);
+            VkShaderModule CreateShaderModuleFor(RendererComponent& rendererComponent, const std::vector<char>& code);
+            bool CreateCommandBuffersFor(RendererComponent& rendererComponent);
+            bool CreateCommandPoolFor(RendererComponent& rendererComponent);
+            bool CreateSyncObjectsFor(RendererComponent& rendererComponent);
+        }
+
+        // Small utilities
+        namespace Utils
+        {
+            std::vector<char> ReadFile(const std::string& filename);
+        }
+    } // namespace RENDERER_HELPERS
+} // namespace RENDERING

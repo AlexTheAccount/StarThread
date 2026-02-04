@@ -6760,7 +6760,7 @@ typedef struct _wdirent _wdirent;
 
 struct _WDIR {
     /* Current directory entry */
-    struct _wdirent ent;
+    struct _wdirent entity;
 
     /* Private file data */
     WIN32_FIND_DATAW data;
@@ -6811,7 +6811,7 @@ struct dirent {
 typedef struct dirent dirent;
 
 struct DIR {
-    struct dirent ent;
+    struct dirent entity;
     struct _WDIR *wdirp;
 };
 typedef struct DIR DIR;
@@ -6960,7 +6960,7 @@ _wreaddir(
         DWORD attr;
         
         /* Pointer to directory entry to return */
-        entp = &dirp->ent;
+        entp = &dirp->entity;
 
         /* 
          * Copy file name as wide-character string.  If the file name is too
@@ -6972,7 +6972,7 @@ _wreaddir(
             entp->d_name[n] = datap->cFileName[n];
             n++;
         }
-        dirp->ent.d_name[n] = 0;
+        dirp->entity.d_name[n] = 0;
 
         /* Length of file name excluding zero terminator */
         entp->d_namlen = n;
@@ -7206,7 +7206,7 @@ readdir(
 
         /* Attempt to convert file name to multi-byte string */
         error = dirent_wcstombs_s(
-            &n, dirp->ent.d_name, PATH_MAX, datap->cFileName, PATH_MAX);
+            &n, dirp->entity.d_name, PATH_MAX, datap->cFileName, PATH_MAX);
 
         /* 
          * If the file name cannot be represented by a multi-byte string,
@@ -7220,7 +7220,7 @@ readdir(
          */
         if (error  &&  datap->cAlternateFileName[0] != '\0') {
             error = dirent_wcstombs_s(
-                &n, dirp->ent.d_name, PATH_MAX, 
+                &n, dirp->entity.d_name, PATH_MAX, 
                 datap->cAlternateFileName, PATH_MAX);
         }
 
@@ -7228,7 +7228,7 @@ readdir(
             DWORD attr;
 
             /* Initialize directory entry for return */
-            entp = &dirp->ent;
+            entp = &dirp->entity;
 
             /* Length of file name excluding zero terminator */
             entp->d_namlen = n - 1;
@@ -7254,7 +7254,7 @@ readdir(
              * we cannot return NULL as that would stop the processing
              * of directory entries completely.
              */
-            entp = &dirp->ent;
+            entp = &dirp->entity;
             entp->d_name[0] = '?';
             entp->d_name[1] = '\0';
             entp->d_namlen = 1;
@@ -10904,7 +10904,7 @@ typedef struct _wdirent _wdirent;
 
 struct _WDIR {
     /* Current directory entry */
-    struct _wdirent ent;
+    struct _wdirent entity;
 
     /* Private file data */
     WIN32_FIND_DATAW data;
@@ -10955,7 +10955,7 @@ struct dirent {
 typedef struct dirent dirent;
 
 struct DIR {
-    struct dirent ent;
+    struct dirent entity;
     struct _WDIR *wdirp;
 };
 typedef struct DIR DIR;
@@ -11104,7 +11104,7 @@ _wreaddir(
         DWORD attr;
         
         /* Pointer to directory entry to return */
-        entp = &dirp->ent;
+        entp = &dirp->entity;
 
         /* 
          * Copy file name as wide-character string.  If the file name is too
@@ -11116,7 +11116,7 @@ _wreaddir(
             entp->d_name[n] = datap->cFileName[n];
             n++;
         }
-        dirp->ent.d_name[n] = 0;
+        dirp->entity.d_name[n] = 0;
 
         /* Length of file name excluding zero terminator */
         entp->d_namlen = n;
@@ -11350,7 +11350,7 @@ readdir(
 
         /* Attempt to convert file name to multi-byte string */
         error = dirent_wcstombs_s(
-            &n, dirp->ent.d_name, PATH_MAX, datap->cFileName, PATH_MAX);
+            &n, dirp->entity.d_name, PATH_MAX, datap->cFileName, PATH_MAX);
 
         /* 
          * If the file name cannot be represented by a multi-byte string,
@@ -11364,7 +11364,7 @@ readdir(
          */
         if (error  &&  datap->cAlternateFileName[0] != '\0') {
             error = dirent_wcstombs_s(
-                &n, dirp->ent.d_name, PATH_MAX, 
+                &n, dirp->entity.d_name, PATH_MAX, 
                 datap->cAlternateFileName, PATH_MAX);
         }
 
@@ -11372,7 +11372,7 @@ readdir(
             DWORD attr;
 
             /* Initialize directory entry for return */
-            entp = &dirp->ent;
+            entp = &dirp->entity;
 
             /* Length of file name excluding zero terminator */
             entp->d_namlen = n - 1;
@@ -11398,7 +11398,7 @@ readdir(
              * we cannot return NULL as that would stop the processing
              * of directory entries completely.
              */
-            entp = &dirp->ent;
+            entp = &dirp->entity;
             entp->d_name[0] = '?';
             entp->d_name[1] = '\0';
             entp->d_namlen = 1;
@@ -55423,7 +55423,7 @@ namespace GW
 
 							// to debug, add a conditional break point where b != 0, then press any key
 							// whatever I is equal to, is the bit offset of the key you pressed.
-							// ex: num pad 0 is at i = 90
+							// exception: num pad 0 is at i = 90
 							auto b = keys_return[index] & (bitshift) ? 1 : 0;
 
 							//Set keyboard input
