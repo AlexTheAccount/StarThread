@@ -6,9 +6,9 @@ using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Image;
 using namespace RENDERING::RENDERER_HELPERS::Memory;
 
-namespace RENDERER_HELPERS
+namespace RENDERING::RENDERER_HELPERS::Depth
 {
-    static VkFormat FindSupportedFormat(RendererComponent& rendererComponent, 
+    VkFormat FindSupportedFormat(RendererComponent& rendererComponent, 
         const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
     {
         for (VkFormat format : candidates)
@@ -29,12 +29,12 @@ namespace RENDERER_HELPERS
         throw std::runtime_error("Failed to find supported format");
     }
 
-    static bool HasStencilComponent(VkFormat format)
+    bool HasStencilComponent(VkFormat format)
     {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    static VkFormat FindDepthFormat(RendererComponent& rendererComponent)
+    VkFormat FindDepthFormat(RendererComponent& rendererComponent)
     {
         return FindSupportedFormat(rendererComponent,
             { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },

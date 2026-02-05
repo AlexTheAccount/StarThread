@@ -7,7 +7,7 @@
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Memory;
 
-namespace RENDERER_HELPERS
+namespace RENDERING::RENDERER_HELPERS
 {
     namespace Utils
     {

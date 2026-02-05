@@ -8,7 +8,7 @@
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Device;
 
-namespace RENDERER_HELPERS::Swapchain
+namespace RENDERING::RENDERER_HELPERS::Swapchain
 {
     bool CreateSwapchainFor(RendererComponent& rendererComponent)
     {
@@ -146,8 +146,7 @@ namespace RENDERER_HELPERS::Swapchain
         rendererComponent.swapchainImageFormat = surfaceFormat.format;
         rendererComponent.swapchainExtent = extent;
 
-        rendererComponent.imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
-
+        rendererComponent.imagesInFlight.resize(rendererComponent.swapchainImages.size(), VK_NULL_HANDLE);
         return true;
     }
 

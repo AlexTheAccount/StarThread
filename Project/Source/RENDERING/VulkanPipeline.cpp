@@ -7,7 +7,7 @@ using namespace RENDERING::RENDERER_HELPERS::Device;
 
 using namespace RENDERING;
 
-namespace RENDERER_HELPERS::Pipeline
+namespace RENDERING::RENDERER_HELPERS::Pipeline
 {
     bool CreateRenderPassFor(RendererComponent& rendererComponent)
     {
@@ -65,8 +65,8 @@ namespace RENDERER_HELPERS::Pipeline
 
     bool CreateGraphicsPipelineFor(RendererComponent& rendererComponent)
     {
-        auto vertexShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/vert.spv");
-        auto fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/frag.spv");
+        auto vertexShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/VertexShader.spv");
+        auto fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/PixelShader.spv");
         if (vertexShaderCode.empty() || fragmentShaderCode.empty())
         {
             printf("Failed to load shaders\n");
@@ -93,8 +93,35 @@ namespace RENDERER_HELPERS::Pipeline
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+        // Stride: position(vec4) + texcoord(vec2) + normal(vec3) = 9 floats
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(float) * 9;
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+        // Match HLSL: position, texcoord, normal
+        // position -> location 0 (vec4)
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[0].offset = 0;
+        // texcoord -> location 1 (vec2) -- after 4 floats
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = sizeof(float) * 4;
+        // normal -> location 2 (vec3) -- after 4 + 2 floats = 6 floats
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[2].offset = sizeof(float) * 6;
+
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -146,7 +173,6 @@ namespace RENDERER_HELPERS::Pipeline
         colorBlending.attachmentCount = 1;
         colorBlending.pAttachments = &colorBlendAttachment;
 
-        // Depth/stencil state
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable = VK_TRUE;
@@ -162,7 +188,7 @@ namespace RENDERER_HELPERS::Pipeline
         uboBinding.binding = 0; // match cbuffer register(b0)
         uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboBinding.descriptorCount = 1;
-        uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         uboBinding.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding samplerBinding{};
@@ -233,7 +259,7 @@ namespace RENDERER_HELPERS::Pipeline
         // Create uniform buffer
         {
             VkDeviceSize uboSize = sizeof(float) * 16 * 2; // view + projection
-            try 
+            try
             {
                 RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, uboSize,
                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -241,7 +267,7 @@ namespace RENDERER_HELPERS::Pipeline
                     rendererComponent.uniformBuffer,
                     rendererComponent.uniformBufferMemory);
             }
-            catch (const std::exception& exception) 
+            catch (const std::exception& exception)
             {
                 printf("Failed to create uniform buffer: %s\n", exception.what());
                 vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
@@ -283,6 +309,13 @@ namespace RENDERER_HELPERS::Pipeline
             }
         }
 
+        if (rendererComponent.textureImageView == VK_NULL_HANDLE)
+        {
+            printf("No texture image view found, creating a default white texture\n");
+            unsigned char whitePixel[4] = { 255u, 255u, 255u, 255u };
+            RENDERING::RENDERER_HELPERS::Image::CreateTextureFromPixelsFor(rendererComponent, whitePixel, 1u, 1u, VK_FORMAT_R8G8B8A8_UNORM);
+        }
+
         // Update descriptor sets
         {
             VkDeviceSize uboSize = sizeof(float) * 16 * 2;
@@ -317,6 +350,81 @@ namespace RENDERER_HELPERS::Pipeline
 
             vkUpdateDescriptorSets(rendererComponent.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
+
+        // Create a simple vertex buffer
+        {
+            const float vertices[] =
+            {
+                 0.0f, -0.5f, 0.0f, 1.0f,       0.5f, 1.0f,  0.0f, 0.0f, 1.0f,
+                 0.5f,  0.5f, 0.0f, 1.0f,       1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+                -0.5f,  0.5f, 0.0f, 1.0f,       0.0f, 0.0f,  0.0f, 0.0f, 1.0f
+            };
+            VkDeviceSize bufferSize = sizeof(vertices);
+
+            VkBuffer stagingBuffer = VK_NULL_HANDLE;
+            VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
+
+            // create staging
+            try
+            {
+                RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, bufferSize,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    stagingBuffer, stagingBufferMemory);
+            }
+            catch (const std::exception& exception) 
+            {
+                printf("Failed to create staging buffer for vertex data: %s\n", exception.what());
+                vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
+                rendererComponent.descriptorPool = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
+                vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);
+                vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
+                return false;
+            }
+
+            // upload vertex data to staging
+            void* dataPtr = nullptr;
+            vkMapMemory(rendererComponent.device, stagingBufferMemory, 0, bufferSize, 0, &dataPtr);
+            std::memcpy(dataPtr, vertices, (size_t)bufferSize);
+            vkUnmapMemory(rendererComponent.device, stagingBufferMemory);
+
+            // create device local vertex buffer
+            try
+            {
+                RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, bufferSize,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    rendererComponent.vertexBuffer,
+                    rendererComponent.vertexBufferMemory);
+            }
+            catch (const std::exception& exception)
+            {
+                printf("Failed to create device local vertex buffer: %s\n", exception.what());
+                vkDestroyBuffer(rendererComponent.device, stagingBuffer, nullptr);
+                vkFreeMemory(rendererComponent.device, stagingBufferMemory, nullptr);
+                vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
+                rendererComponent.descriptorPool = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
+                vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);
+                vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
+                return false;
+            }
+
+            // copy staging -> vertex buffer
+            VkCommandBuffer command = RENDERING::RENDERER_HELPERS::Memory::BeginSingleTimeCommandsFor(rendererComponent);
+            VkBufferCopy copyRegion{};
+            copyRegion.srcOffset = 0;
+            copyRegion.dstOffset = 0;
+            copyRegion.size = bufferSize;
+            vkCmdCopyBuffer(command, stagingBuffer, rendererComponent.vertexBuffer, 1, &copyRegion);
+            RENDERING::RENDERER_HELPERS::Memory::EndSingleTimeCommandsFor(rendererComponent, command);
+
+            // cleanup staging
+            vkDestroyBuffer(rendererComponent.device, stagingBuffer, nullptr);
+            vkFreeMemory(rendererComponent.device, stagingBufferMemory, nullptr);
+        }
+        // end vertex buffer creation
 
         VkPushConstantRange pushConstRange{};
         pushConstRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -434,6 +542,13 @@ namespace RENDERER_HELPERS::Pipeline
             modelMatrix[15] = 1.0f;
             vkCmdPushConstants(rendererComponent.commandBuffers[buffer], rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(modelMatrix), modelMatrix);
 
+            // Bind vertex buffer
+            if (rendererComponent.vertexBuffer != VK_NULL_HANDLE) 
+            {
+                VkBuffer vertexBuffers[] = { rendererComponent.vertexBuffer };
+                VkDeviceSize offsets[] = { 0 };
+                vkCmdBindVertexBuffers(rendererComponent.commandBuffers[buffer], 0, 1, vertexBuffers, offsets);
+            }
             // Single draw
             vkCmdDraw(rendererComponent.commandBuffers[buffer], 3, 1, 0, 0);
             vkCmdEndRenderPass(rendererComponent.commandBuffers[buffer]);
@@ -466,8 +581,11 @@ namespace RENDERER_HELPERS::Pipeline
 
     bool CreateSyncObjectsFor(RendererComponent& rendererComponent)
     {
+        // imageAvailable semaphores: per-frame
         rendererComponent.imageAvailableSemaphores.resize(rendererComponent.MAX_FRAMES_IN_FLIGHT);
-        rendererComponent.renderFinishedSemaphores.resize(rendererComponent.MAX_FRAMES_IN_FLIGHT);
+        // renderFinished semaphores: per-swapchain-image
+        rendererComponent.renderFinishedSemaphores.resize(rendererComponent.swapchainImages.size());
+        // fences: per-frame
         rendererComponent.inFlightFences.resize(rendererComponent.MAX_FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
@@ -477,13 +595,23 @@ namespace RENDERER_HELPERS::Pipeline
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+        // Create per-frame semaphores + fences
         for (size_t frame = 0; frame < rendererComponent.MAX_FRAMES_IN_FLIGHT; ++frame)
         {
             if (vkCreateSemaphore(rendererComponent.device, &semaphoreInfo, nullptr, &rendererComponent.imageAvailableSemaphores[frame]) != VK_SUCCESS ||
-                vkCreateSemaphore(rendererComponent.device, &semaphoreInfo, nullptr, &rendererComponent.renderFinishedSemaphores[frame]) != VK_SUCCESS ||
                 vkCreateFence(rendererComponent.device, &fenceInfo, nullptr, &rendererComponent.inFlightFences[frame]) != VK_SUCCESS)
             {
-                printf("Failed to create synchronization objects for a frame\n");
+                printf("Failed to create per-frame synchronization objects\n");
+                return false;
+            }
+        }
+
+        // Create per-swapchain-image render-finished semaphores
+        for (size_t semaphore = 0; semaphore < rendererComponent.renderFinishedSemaphores.size(); ++semaphore)
+        {
+            if (vkCreateSemaphore(rendererComponent.device, &semaphoreInfo, nullptr, &rendererComponent.renderFinishedSemaphores[semaphore]) != VK_SUCCESS)
+            {
+                printf("Failed to create render-finished semaphore for image %zu\n", semaphore);
                 return false;
             }
         }

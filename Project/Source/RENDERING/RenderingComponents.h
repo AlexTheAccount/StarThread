@@ -72,6 +72,8 @@ namespace RENDERING
         std::vector<VkFence> imagesInFlight;
         size_t currentFrame = 0;
 
+        VkBuffer vertexBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
         VkBuffer uniformBuffer = VK_NULL_HANDLE;
         VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
         VkSampler textureSampler = VK_NULL_HANDLE;
@@ -97,10 +99,11 @@ namespace RENDERING
     {
         // Top-level lifecycle
         bool Initialize(uint32_t width, uint32_t height, const char* title);
-        void MainLoop();
+        void RenderingLoop();
         void Cleanup();
         void UpdateUniforms(const void* data, size_t size);
         void Render();
+        RendererComponent* GetGlobalRenderer();
 
         // Window initialization
         bool InitializeWindow(uint32_t width, uint32_t height, const char* title); 
@@ -135,6 +138,14 @@ namespace RENDERING
             bool CreateImageViewsFor(RendererComponent& rendererComponent);
             bool CreateFramebuffersFor(RendererComponent& rendererComponent);
             void RecreateSwapchainFor(RendererComponent& rendererComponent);
+        }
+
+        namespace Depth
+        {
+            VkFormat FindDepthFormat(RendererComponent& rendererComponent);
+            bool HasStencilComponent(VkFormat format);
+            VkFormat FindDepthFormat(RendererComponent& rendererComponent);
+            bool CreateDepthResourcesFor(RendererComponent& rendererComponent);
         }
 
         // Memory and buffer utilities

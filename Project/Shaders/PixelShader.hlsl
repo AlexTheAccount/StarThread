@@ -8,12 +8,12 @@ cbuffer Transform : register(b0)
 struct PSIn
 {
     float4 PosH : SV_POSITION;
-    float3 Normal : TEXCOORD1;
     float2 UV : TEXCOORD0;
+    float3 Normal : TEXCOORD1;
 };
 
-Texture2D diffTexture : register(t0);
-SamplerState SampleType : register(s0);
+Texture2D diffTexture : register(t1);
+SamplerState SampleType : register(s1);
 
 float4 main(PSIn input) : SV_TARGET
 {

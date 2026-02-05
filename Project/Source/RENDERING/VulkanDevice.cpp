@@ -9,7 +9,7 @@
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Device;
 
-namespace RENDERER_HELPERS::Device
+namespace RENDERING::RENDERER_HELPERS::Device
 {
     bool CreateInstanceFor(RendererComponent& rendererComponent)
     {
