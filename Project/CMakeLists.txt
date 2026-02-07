@@ -43,10 +43,17 @@ FetchContent_MakeAvailable(glfw)
 # Fetches Vulkan install
 find_package(Vulkan REQUIRED)
 
-# gather C++ sources
-file(GLOB_RECURSE C_SOURCE_FILES CONFIGURE_DEPENDS
-    ./Source/*.h
-    ./Source/*.cpp
+# gather game sources
+file(GLOB_RECURSE C_GAME_FILES CONFIGURE_DEPENDS
+    ./Game/*.h
+    ./Game/*.cpp
+    ./gateware-26.33.16/Gateware.h
+)
+
+# gather engine sources
+file(GLOB_RECURSE C_ENGINE_FILES CONFIGURE_DEPENDS
+    ./Engine/*.h
+    ./Engine/*.cpp
     ./gateware-26.33.16/Gateware.h
 )
 
@@ -56,7 +63,8 @@ file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS
 )
 
 add_executable(StarThread)
-target_sources(StarThread PRIVATE ${C_SOURCE_FILES})
+target_sources(StarThread PRIVATE ${C_GAME_FILES})
+target_sources(StarThread PRIVATE ${C_ENGINE_FILES})
 target_sources(StarThread PRIVATE ${SHADER_FILES})
 
 # Shader Compilation
@@ -103,7 +111,7 @@ if(COMPILED_SHADERS)
 endif()
 
 # make shaders visible in VS solution explorer but not compiled by VS default rules
-source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${C_SOURCE_FILES} ${SHADER_FILES})
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${C_GAME_FILES} ${C_ENGINE_FILES} ${SHADER_FILES})
 set_source_files_properties(${SHADER_FILES} PROPERTIES VS_TOOL_OVERRIDE "None")
 
 # include directories and link libraries
@@ -120,7 +128,7 @@ set(PRE_COMPILED
 )
 
 # Organize files into filter in Visual Studio solution explorer
-source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${C_SOURCE_FILES} ${SHADER_FILES})
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${C_GAME_FILES} ${C_ENGINE_FILES} ${SHADER_FILES})
 
 # swaps "ALL_BUILD" with project as startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT StarThread)

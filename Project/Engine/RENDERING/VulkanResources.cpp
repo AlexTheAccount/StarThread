@@ -1,5 +1,4 @@
 #include "RenderingComponents.h"
-#include "../GAME/GlobalRegistry.h"
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
@@ -48,11 +47,11 @@ namespace RENDERING::RENDERER_HELPERS
     {
         uint32_t FindMemoryTypeFor(RendererComponent& rendererComponent, uint32_t typeFilter, VkMemoryPropertyFlags properties)
         {
-            VkPhysicalDeviceMemoryProperties memProperties;
-            vkGetPhysicalDeviceMemoryProperties(rendererComponent.physicalDevice, &memProperties);
+            VkPhysicalDeviceMemoryProperties memoryProperties;
+            vkGetPhysicalDeviceMemoryProperties(rendererComponent.physicalDevice, &memoryProperties);
 
-            for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
-                if ((typeFilter & (1u << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
+                if ((typeFilter & (1u << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
                     return i;
                 }
             }

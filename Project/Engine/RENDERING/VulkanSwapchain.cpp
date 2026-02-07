@@ -1,5 +1,4 @@
 #include "RenderingComponents.h"
-#include "../GAME/GlobalRegistry.h"
 #include <vector>
 #include <algorithm>
 #include <stdio.h>

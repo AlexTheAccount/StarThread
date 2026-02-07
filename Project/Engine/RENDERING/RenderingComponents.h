@@ -97,6 +97,21 @@ namespace RENDERING
     // *** RENDERER HELPERS *** //
     namespace RENDERER_HELPERS
     {
+        // Bind/unbind an externally owned RendererComponent
+        void BindRenderer(RendererComponent* renderer);
+        void UnbindRenderer();
+        RendererComponent* GetBoundRenderer();
+
+        // Per-instance initialization / lifecycle
+        bool InitializeFor(RendererComponent& rendererComponent, uint32_t width, uint32_t height, const char* title);
+        bool InitializeWindowFor(RendererComponent& rendererComponent, uint32_t width, uint32_t height, const char* title);
+        bool InitializeVulkanFor(RendererComponent& rendererComponent);
+        void CleanupFor(RendererComponent& rendererComponent);
+
+        // Rendering APIs (per-instance)
+        void RenderFor(RendererComponent& rendererComponent);
+        void UpdateUniformsFor(RendererComponent& rendererComponent, const void* data, size_t size);
+
         // Top-level lifecycle
         bool Initialize(uint32_t width, uint32_t height, const char* title);
         void RenderingLoop();
