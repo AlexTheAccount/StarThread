@@ -1,27 +1,60 @@
 #pragma once
+#define GLFW_INCLUDE_VULKAN
+#include "../UTILITIES/UtilityComponents.h"
 #include <cstdint>
 #include <optional>
-#include "..\gateware-26.33.16\Gateware.h"
-
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
 
+using namespace UTILITIES;
+
 namespace RENDERING
 {
+    //*** FORWARD DECLARATIONS ***//
+    struct MeshResource;
+
     //*** TAGS ***//
     struct RenderableTag {};
-    
+
+    //*** CLASSES ***//
+    class MeshManager
+    {
+    public:
+        static MeshManager& Instance();
+
+        uint32_t LoadMesh(const std::string& name, const std::string& filepath);
+
+        uint32_t GetMeshId(const std::string& name) const;
+
+        const MeshResource* GetMesh(uint32_t id) const;
+        size_t MeshCount() const;
+
+        void ReleaseCpuMeshData(uint32_t id);
+
+    private:
+        MeshManager() = default;
+        std::vector<MeshResource> resources;
+        std::unordered_map<std::string, uint32_t> nameToId;
+        mutable std::mutex mutex;
+    };
+
     //*** COMPONENTS ***//
+    struct MeshResource
+    {
+        std::vector<FBXVertex> vertices;
+        std::vector<uint32_t> indices;
+    };
+
     struct Transform
     {
         GW::MATH::GVECTORF position{{{0.0f, 0.0f, 0.0f, 0.0f}}};
         GW::MATH::GVECTORF rotation{{{0.0f, 0.0f, 0.0f, 0.0f}}};
         GW::MATH::GVECTORF scale{{{1.0f, 1.0f, 1.0f, 0.0f}}};
     };
+
     struct MeshHandle { uint32_t id = UINT32_MAX; };
+
     struct TextureHandle { uint32_t id = UINT32_MAX; };
 
     struct Material
@@ -74,6 +107,8 @@ namespace RENDERING
 
         VkBuffer vertexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+        VkBuffer indexBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
         VkBuffer uniformBuffer = VK_NULL_HANDLE;
         VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
         VkSampler textureSampler = VK_NULL_HANDLE;
@@ -81,6 +116,7 @@ namespace RENDERING
         VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
         VkImageView textureImageView = VK_NULL_HANDLE;
 
+        size_t indexCount = 0;
         // Depth resources
         VkImage depthImage = VK_NULL_HANDLE;
         VkDeviceMemory depthImageMemory = VK_NULL_HANDLE;
@@ -171,6 +207,7 @@ namespace RENDERING
                                  VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
             VkCommandBuffer BeginSingleTimeCommandsFor(RendererComponent& rendererComponent);
             void EndSingleTimeCommandsFor(RendererComponent& rendererComponent, VkCommandBuffer commandBuffer);
+            void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent, const std::vector<FBXVertex>& vertices, const std::vector<uint32_t>& indices);
         }
 
         // Image / texture utilities
@@ -197,7 +234,7 @@ namespace RENDERING
         }
 
         // Small utilities
-        namespace Utils
+        namespace Utilities
         {
             std::vector<char> ReadFile(const std::string& filename);
         }

@@ -1,11 +1,9 @@
 #include "RenderingComponents.h"
 #include <array>
-#include <stdexcept>
-#include <stdio.h>
 #include <cstring>
-using namespace RENDERING::RENDERER_HELPERS::Device;
 
 using namespace RENDERING;
+using namespace RENDERING::RENDERER_HELPERS::Device;
 
 namespace RENDERING::RENDERER_HELPERS::Pipeline
 {
@@ -65,8 +63,8 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
     bool CreateGraphicsPipelineFor(RendererComponent& rendererComponent)
     {
-        auto vertexShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/VertexShader.spv");
-        auto fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utils::ReadFile("shaders/PixelShader.spv");
+        std::vector<char> vertexShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile("shaders/VertexShader.spv");
+        std::vector<char> fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile("shaders/PixelShader.spv");
         if (vertexShaderCode.empty() || fragmentShaderCode.empty())
         {
             printf("Failed to load shaders\n");
@@ -91,37 +89,40 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertexStageInfo, fragmentStageInfo };
 
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-        // Stride: position(vec4) + texcoord(vec2) + normal(vec3) = 9 floats
+        // Vertex input binding
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(float) * 9;
+        bindingDescription.stride = sizeof(FBXVertex);
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-        // Match HLSL: position, texcoord, normal
-        // position -> location 0 (vec4)
+        // Attribute descriptions: location 0 = position (vec3), 1 = texcoord (vec2), 2 = normal (vec3)
+        VkVertexInputAttributeDescription attributeDescriptions[3];
+
+        // location 0: position (vec3)
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        attributeDescriptions[0].offset = 0;
-        // texcoord -> location 1 (vec2) -- after 4 floats
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(FBXVertex, position);
+
+        // location 1: texcoord (vec2)
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[1].offset = sizeof(float) * 4;
-        // normal -> location 2 (vec3) -- after 4 + 2 floats = 6 floats
+        attributeDescriptions[1].offset = offsetof(FBXVertex, uv);
+
+        // location 2: normal (vec3)
         attributeDescriptions[2].binding = 0;
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[2].offset = sizeof(float) * 6;
+        attributeDescriptions[2].offset = offsetof(FBXVertex, normal);
 
+        // Fill VkPipelineVertexInputStateCreateInfo
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInputInfo.vertexBindingDescriptionCount = 1;
         vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        vertexInputInfo.vertexAttributeDescriptionCount = 3;
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -351,81 +352,6 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             vkUpdateDescriptorSets(rendererComponent.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
 
-        // Create a simple vertex buffer
-        {
-            const float vertices[] =
-            {
-                 0.0f, -0.5f, 0.0f, 1.0f,       0.5f, 1.0f,  0.0f, 0.0f, 1.0f,
-                 0.5f,  0.5f, 0.0f, 1.0f,       1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-                -0.5f,  0.5f, 0.0f, 1.0f,       0.0f, 0.0f,  0.0f, 0.0f, 1.0f
-            };
-            VkDeviceSize bufferSize = sizeof(vertices);
-
-            VkBuffer stagingBuffer = VK_NULL_HANDLE;
-            VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
-
-            // create staging
-            try
-            {
-                RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, bufferSize,
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    stagingBuffer, stagingBufferMemory);
-            }
-            catch (const std::exception& exception) 
-            {
-                printf("Failed to create staging buffer for vertex data: %s\n", exception.what());
-                vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
-                rendererComponent.descriptorPool = VK_NULL_HANDLE;
-                vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
-                return false;
-            }
-
-            // upload vertex data to staging
-            void* dataPtr = nullptr;
-            vkMapMemory(rendererComponent.device, stagingBufferMemory, 0, bufferSize, 0, &dataPtr);
-            std::memcpy(dataPtr, vertices, (size_t)bufferSize);
-            vkUnmapMemory(rendererComponent.device, stagingBufferMemory);
-
-            // create device local vertex buffer
-            try
-            {
-                RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, bufferSize,
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    rendererComponent.vertexBuffer,
-                    rendererComponent.vertexBufferMemory);
-            }
-            catch (const std::exception& exception)
-            {
-                printf("Failed to create device local vertex buffer: %s\n", exception.what());
-                vkDestroyBuffer(rendererComponent.device, stagingBuffer, nullptr);
-                vkFreeMemory(rendererComponent.device, stagingBufferMemory, nullptr);
-                vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
-                rendererComponent.descriptorPool = VK_NULL_HANDLE;
-                vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
-                return false;
-            }
-
-            // copy staging -> vertex buffer
-            VkCommandBuffer command = RENDERING::RENDERER_HELPERS::Memory::BeginSingleTimeCommandsFor(rendererComponent);
-            VkBufferCopy copyRegion{};
-            copyRegion.srcOffset = 0;
-            copyRegion.dstOffset = 0;
-            copyRegion.size = bufferSize;
-            vkCmdCopyBuffer(command, stagingBuffer, rendererComponent.vertexBuffer, 1, &copyRegion);
-            RENDERING::RENDERER_HELPERS::Memory::EndSingleTimeCommandsFor(rendererComponent, command);
-
-            // cleanup staging
-            vkDestroyBuffer(rendererComponent.device, stagingBuffer, nullptr);
-            vkFreeMemory(rendererComponent.device, stagingBufferMemory, nullptr);
-        }
-        // end vertex buffer creation
-
         VkPushConstantRange pushConstRange{};
         pushConstRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         pushConstRange.offset = 0;
@@ -542,15 +468,30 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             modelMatrix[15] = 1.0f;
             vkCmdPushConstants(rendererComponent.commandBuffers[buffer], rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(modelMatrix), modelMatrix);
 
-            // Bind vertex buffer
-            if (rendererComponent.vertexBuffer != VK_NULL_HANDLE) 
+            // Bind vertex buffer and draw
+            if (rendererComponent.vertexBuffer != VK_NULL_HANDLE)
             {
                 VkBuffer vertexBuffers[] = { rendererComponent.vertexBuffer };
                 VkDeviceSize offsets[] = { 0 };
                 vkCmdBindVertexBuffers(rendererComponent.commandBuffers[buffer], 0, 1, vertexBuffers, offsets);
+
+                if (rendererComponent.indexBuffer != VK_NULL_HANDLE && rendererComponent.indexCount > 0)
+                {
+                    vkCmdBindIndexBuffer(rendererComponent.commandBuffers[buffer], rendererComponent.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                    vkCmdDrawIndexed(rendererComponent.commandBuffers[buffer], static_cast<uint32_t>(rendererComponent.indexCount), 1, 0, 0, 0);
+                }
+                else
+                {
+                    printf("No index buffer found, drawing vertices without indexing\n");
+                    vkCmdDraw(rendererComponent.commandBuffers[buffer], 3, 1, 0, 0);
+                }
             }
-            // Single draw
-            vkCmdDraw(rendererComponent.commandBuffers[buffer], 3, 1, 0, 0);
+            else
+            {
+                printf("No vertex buffer found, skipping draw to avoid validation error\n");
+
+            }
+
             vkCmdEndRenderPass(rendererComponent.commandBuffers[buffer]);
 
             if (vkEndCommandBuffer(rendererComponent.commandBuffers[buffer]) != VK_SUCCESS)

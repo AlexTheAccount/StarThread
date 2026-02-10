@@ -1,7 +1,6 @@
 #include "RenderingComponents.h"
 #include <vector>
 #include <algorithm>
-#include <stdio.h>
 #include <array>
 
 using namespace RENDERING;
@@ -50,7 +49,7 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
         }
 
         VkSurfaceFormatKHR surfaceFormat = formats[0];
-        for (const auto& availableFormat : formats)
+        for (const VkSurfaceFormatKHR& availableFormat : formats)
         {
             if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
                 availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
@@ -61,7 +60,7 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
         }
 
         VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-        for (const auto& availablePresentMode : presentModes)
+        for (const VkPresentModeKHR& availablePresentMode : presentModes)
         {
             if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
             {
@@ -101,7 +100,7 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         
-        auto indices = FindQueueFamilies(rendererComponent.physicalDevice, rendererComponent.surface);
+        Device::QueueFamilyIndices indices = FindQueueFamilies(rendererComponent.physicalDevice, rendererComponent.surface);
         uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
         if (indices.graphicsFamily != indices.presentFamily)
@@ -110,7 +109,8 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
             createInfo.queueFamilyIndexCount = 2;
             createInfo.pQueueFamilyIndices = queueFamilyIndices;
         }
-        else {
+        else 
+        {
             createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
             createInfo.queueFamilyIndexCount = 0;
             createInfo.pQueueFamilyIndices = nullptr;
@@ -218,7 +218,7 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
 
         vkDeviceWaitIdle(rendererComponent.device);
 
-        for (auto framebuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, framebuffer, nullptr);
+        for (VkFramebuffer framebuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, framebuffer, nullptr);
         rendererComponent.swapchainFramebuffers.clear();
 
         if (!rendererComponent.commandBuffers.empty())
@@ -231,7 +231,7 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
         if (rendererComponent.pipelineLayout) { vkDestroyPipelineLayout(rendererComponent.device, rendererComponent.pipelineLayout, nullptr); rendererComponent.pipelineLayout = VK_NULL_HANDLE; }
         if (rendererComponent.renderPass) { vkDestroyRenderPass(rendererComponent.device, rendererComponent.renderPass, nullptr); rendererComponent.renderPass = VK_NULL_HANDLE; }
 
-        for (auto view : rendererComponent.swapchainImageViews) vkDestroyImageView(rendererComponent.device, view, nullptr);
+        for (VkImageView view : rendererComponent.swapchainImageViews) vkDestroyImageView(rendererComponent.device, view, nullptr);
         rendererComponent.swapchainImageViews.clear();
 
         if (rendererComponent.swapchain) { vkDestroySwapchainKHR(rendererComponent.device, rendererComponent.swapchain, nullptr); rendererComponent.swapchain = VK_NULL_HANDLE; }

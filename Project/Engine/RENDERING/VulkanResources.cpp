@@ -8,7 +8,7 @@ using namespace RENDERING::RENDERER_HELPERS::Memory;
 
 namespace RENDERING::RENDERER_HELPERS
 {
-    namespace Utils
+    namespace Utilities
     {
         std::vector<char> ReadFile(const std::string& filename)
         {
@@ -22,7 +22,7 @@ namespace RENDERING::RENDERER_HELPERS
             file.close();
             return buffer;
         }
-    } // namespace Utils
+    } // namespace Utilities
 
     namespace Pipeline
     {
@@ -50,9 +50,11 @@ namespace RENDERING::RENDERER_HELPERS
             VkPhysicalDeviceMemoryProperties memoryProperties;
             vkGetPhysicalDeviceMemoryProperties(rendererComponent.physicalDevice, &memoryProperties);
 
-            for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
-                if ((typeFilter & (1u << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                    return i;
+            for (uint32_t memoryType = 0; memoryType < memoryProperties.memoryTypeCount; ++memoryType) 
+            {
+                if ((typeFilter & (1u << memoryType)) && (memoryProperties.memoryTypes[memoryType].propertyFlags & properties) == properties) 
+                {
+                    return memoryType;
                 }
             }
 
@@ -67,19 +69,21 @@ namespace RENDERING::RENDERER_HELPERS
             bufferInfo.usage = usage;
             bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            if (vkCreateBuffer(rendererComponent.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+            if (vkCreateBuffer(rendererComponent.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) 
+            {
                 throw std::runtime_error("Failed to create buffer");
             }
 
-            VkMemoryRequirements memRequirements;
-            vkGetBufferMemoryRequirements(rendererComponent.device, buffer, &memRequirements);
+            VkMemoryRequirements memoryRequirements;
+            vkGetBufferMemoryRequirements(rendererComponent.device, buffer, &memoryRequirements);
 
             VkMemoryAllocateInfo allocateInfo{};
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            allocateInfo.allocationSize = memRequirements.size;
-            allocateInfo.memoryTypeIndex = FindMemoryTypeFor(rendererComponent, memRequirements.memoryTypeBits, properties);
+            allocateInfo.allocationSize = memoryRequirements.size;
+            allocateInfo.memoryTypeIndex = FindMemoryTypeFor(rendererComponent, memoryRequirements.memoryTypeBits, properties);
 
-            if (vkAllocateMemory(rendererComponent.device, &allocateInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            if (vkAllocateMemory(rendererComponent.device, &allocateInfo, nullptr, &bufferMemory) != VK_SUCCESS) 
+            {
                 throw std::runtime_error("Failed to allocate buffer memory");
             }
 
@@ -119,6 +123,65 @@ namespace RENDERING::RENDERER_HELPERS
 
             vkFreeCommandBuffers(rendererComponent.device, rendererComponent.commandPool, 1, &commandBuffer);
         }
+
+        void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent, const std::vector<FBXVertex>& vertices, const std::vector<uint32_t>& indices)
+        {
+            if (vertices.empty() || indices.empty()) return;
+
+            VkDeviceSize vertexBufferSize = sizeof(FBXVertex) * vertices.size();
+            VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+
+            // Staging buffers
+            VkBuffer stagingVertexBuffer;
+            VkDeviceMemory stagingVertexMemory;
+            CreateBufferFor(rendererComponent, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingVertexBuffer, stagingVertexMemory);
+
+            void* data = nullptr;
+            vkMapMemory(rendererComponent.device, stagingVertexMemory, 0, vertexBufferSize, 0, &data);
+            memcpy(data, vertices.data(), static_cast<size_t>(vertexBufferSize));
+            vkUnmapMemory(rendererComponent.device, stagingVertexMemory);
+
+            VkBuffer stagingIndexBuffer;
+            VkDeviceMemory stagingIndexMemory;
+            CreateBufferFor(rendererComponent, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingIndexBuffer, stagingIndexMemory);
+
+            vkMapMemory(rendererComponent.device, stagingIndexMemory, 0, indexBufferSize, 0, &data);
+            memcpy(data, indices.data(), static_cast<size_t>(indexBufferSize));
+            vkUnmapMemory(rendererComponent.device, stagingIndexMemory);
+
+            // device local vertex buffer
+            CreateBufferFor(rendererComponent, vertexBufferSize,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                rendererComponent.vertexBuffer, rendererComponent.vertexBufferMemory);
+
+            // device local index buffer
+            CreateBufferFor(rendererComponent, indexBufferSize,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                rendererComponent.indexBuffer, rendererComponent.indexBufferMemory);
+
+            // Copy staging -> device local
+            VkCommandBuffer commandBuffer = BeginSingleTimeCommandsFor(rendererComponent);
+
+            VkBufferCopy copyRegion{};
+            copyRegion.size = vertexBufferSize;
+            vkCmdCopyBuffer(commandBuffer, stagingVertexBuffer, rendererComponent.vertexBuffer, 1, &copyRegion);
+
+            copyRegion.size = indexBufferSize;
+            vkCmdCopyBuffer(commandBuffer, stagingIndexBuffer, rendererComponent.indexBuffer, 1, &copyRegion);
+
+            EndSingleTimeCommandsFor(rendererComponent, commandBuffer);
+
+            vkDestroyBuffer(rendererComponent.device, stagingVertexBuffer, nullptr);
+            vkFreeMemory(rendererComponent.device, stagingVertexMemory, nullptr);
+            vkDestroyBuffer(rendererComponent.device, stagingIndexBuffer, nullptr);
+            vkFreeMemory(rendererComponent.device, stagingIndexMemory, nullptr);
+        }
     } // namespace Memory
 
     namespace Image
@@ -145,13 +208,13 @@ namespace RENDERING::RENDERER_HELPERS
                 throw std::runtime_error("Failed to create image");
             }
 
-            VkMemoryRequirements memRequirements;
-            vkGetImageMemoryRequirements(rendererComponent.device, image, &memRequirements);
+            VkMemoryRequirements memoryRequirements;
+            vkGetImageMemoryRequirements(rendererComponent.device, image, &memoryRequirements);
 
             VkMemoryAllocateInfo allocateInfo{};
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            allocateInfo.allocationSize = memRequirements.size;
-            allocateInfo.memoryTypeIndex = FindMemoryTypeFor(rendererComponent, memRequirements.memoryTypeBits, properties);
+            allocateInfo.allocationSize = memoryRequirements.size;
+            allocateInfo.memoryTypeIndex = FindMemoryTypeFor(rendererComponent, memoryRequirements.memoryTypeBits, properties);
 
             if (vkAllocateMemory(rendererComponent.device, &allocateInfo, nullptr, &imageMemory) != VK_SUCCESS) {
                 throw std::runtime_error("Failed to allocate image memory");

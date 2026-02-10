@@ -2,8 +2,6 @@
 #include <set>
 #include <vector>
 #include <string>
-#include <cstring>
-#include <stdio.h>
 
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Device;
@@ -83,7 +81,7 @@ namespace RENDERING::RENDERER_HELPERS::Device
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
         int index = 0;
-        for (const auto& queueFamily : queueFamilies)
+        for (const VkQueueFamilyProperties& queueFamily : queueFamilies)
         {
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
             {
@@ -120,7 +118,7 @@ namespace RENDERING::RENDERER_HELPERS::Device
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
 
-        for (const auto& device : devices)
+        for (const VkPhysicalDevice& device : devices)
         {
             QueueFamilyIndices indices = FindQueueFamilies(device, rendererComponent.surface);
 
@@ -131,7 +129,7 @@ namespace RENDERING::RENDERER_HELPERS::Device
             vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionsCount, availableExtension.data());
 
             std::set<std::string> required(deviceExtensions.begin(), deviceExtensions.end());
-            for (const auto& extension : availableExtension)
+            for (const VkExtensionProperties& extension : availableExtension)
             {
                 required.erase(extension.extensionName);
             }

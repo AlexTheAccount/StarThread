@@ -2,7 +2,6 @@
 #include <stdexcept>
 #include <fstream>
 #include <cstring>
-#include <stdio.h>
 
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS::Depth;
@@ -30,8 +29,11 @@ namespace RENDERING::RENDERER_HELPERS
     {
         void* user = glfwGetWindowUserPointer(window);
         if (!user) return;
-        auto renderer = reinterpret_cast<RENDERING::RendererComponent*>(user);
-        renderer->framebufferResized = true;
+        RENDERING::RendererComponent* renderer = reinterpret_cast<RENDERING::RendererComponent*>(user);
+        if (renderer) 
+        {
+            renderer->framebufferResized = true;
+        }
     }
 
     // Initialize window for an externally owned RendererComponent
@@ -49,19 +51,19 @@ namespace RENDERING::RENDERER_HELPERS
         return true;
     }
 
-    // Legacy wrapper: uses bound renderer
+    // uses bound renderer
     bool InitializeWindow(uint32_t width, uint32_t height, const char* title)
     {
-        RendererComponent* r = GetBoundRenderer();
-        if (!r)
+        RendererComponent* renderer = GetBoundRenderer();
+        if (!renderer)
         {
             printf("InitializeWindow(): no bound RendererComponent. Use InitializeWindowFor(renderer, ...) instead.\n");
             return false;
         }
-        return InitializeWindowFor(*r, width, height, title);
+        return InitializeWindowFor(*renderer, width, height, title);
     }
 
-    // Per-instance draw - Validate and submit using the provided renderer instance
+    // Per-instance draw
     void DrawFrameFor(RendererComponent& rendererComponent)
     {
         // Validate necessary sync structures exist
@@ -205,7 +207,6 @@ namespace RENDERING::RENDERER_HELPERS
         return true;
     }
 
-    // Legacy Initialize uses bound renderer; remain for backward compat
     bool Initialize(uint32_t width, uint32_t height, const char* title)
     {
         RendererComponent* rendererComponent = GetBoundRenderer();
@@ -221,21 +222,21 @@ namespace RENDERING::RENDERER_HELPERS
     void CleanupFor(RendererComponent& rendererComponent)
     {
         // Destroy all image-available semaphores
-        for (auto semaphore : rendererComponent.imageAvailableSemaphores)
+        for (VkSemaphore semaphore : rendererComponent.imageAvailableSemaphores)
         {
             if (semaphore != VK_NULL_HANDLE) vkDestroySemaphore(rendererComponent.device, semaphore, nullptr);
         }
         rendererComponent.imageAvailableSemaphores.clear();
 
         // Destroy all render-finished semaphores
-        for (auto semaphore : rendererComponent.renderFinishedSemaphores)
+        for (VkSemaphore semaphore : rendererComponent.renderFinishedSemaphores)
         {
             if (semaphore != VK_NULL_HANDLE) vkDestroySemaphore(rendererComponent.device, semaphore, nullptr);
         }
         rendererComponent.renderFinishedSemaphores.clear();
 
         // Destroy all fences
-        for (auto fence : rendererComponent.inFlightFences)
+        for (VkFence fence : rendererComponent.inFlightFences)
         {
             if (fence != VK_NULL_HANDLE) vkDestroyFence(rendererComponent.device, fence, nullptr);
         }
@@ -243,12 +244,12 @@ namespace RENDERING::RENDERER_HELPERS
 
         if (rendererComponent.commandPool) vkDestroyCommandPool(rendererComponent.device, rendererComponent.commandPool, nullptr);
 
-        for (auto frameBuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, frameBuffer, nullptr);
+        for (VkFramebuffer frameBuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, frameBuffer, nullptr);
         if (rendererComponent.graphicsPipeline) vkDestroyPipeline(rendererComponent.device, rendererComponent.graphicsPipeline, nullptr);
         if (rendererComponent.pipelineLayout) vkDestroyPipelineLayout(rendererComponent.device, rendererComponent.pipelineLayout, nullptr);
         if (rendererComponent.renderPass) vkDestroyRenderPass(rendererComponent.device, rendererComponent.renderPass, nullptr);
 
-        for (auto view : rendererComponent.swapchainImageViews) vkDestroyImageView(rendererComponent.device, view, nullptr);
+        for (VkImageView view : rendererComponent.swapchainImageViews) vkDestroyImageView(rendererComponent.device, view, nullptr);
         if (rendererComponent.swapchain) vkDestroySwapchainKHR(rendererComponent.device, rendererComponent.swapchain, nullptr);
 
         if (rendererComponent.descriptorPool) { vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr); rendererComponent.descriptorPool = VK_NULL_HANDLE; }
@@ -262,6 +263,17 @@ namespace RENDERING::RENDERER_HELPERS
         {
             vkFreeMemory(rendererComponent.device, rendererComponent.vertexBufferMemory, nullptr);
             rendererComponent.vertexBufferMemory = VK_NULL_HANDLE;
+        }
+
+        if (rendererComponent.indexBuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(rendererComponent.device, rendererComponent.indexBuffer, nullptr);
+            rendererComponent.indexBuffer = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.indexBufferMemory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(rendererComponent.device, rendererComponent.indexBufferMemory, nullptr);
+            rendererComponent.indexBufferMemory = VK_NULL_HANDLE;
         }
 
         if (rendererComponent.uniformBuffer != VK_NULL_HANDLE)
@@ -334,13 +346,13 @@ namespace RENDERING::RENDERER_HELPERS
         if (!CreateSurfaceFor(rendererComponent)) return false;
         if (!PickPhysicalDeviceFor(rendererComponent)) return false;
         if (!CreateLogicalDeviceFor(rendererComponent)) return false;
-        if (!Swapchain::CreateSwapchainFor(rendererComponent)) return false;
-        if (!Swapchain::CreateImageViewsFor(rendererComponent)) return false;
+        if (!CreateSwapchainFor(rendererComponent)) return false;
+        if (!CreateImageViewsFor(rendererComponent)) return false;
         if (!CreateRenderPassFor(rendererComponent)) return false;
         if (!CreateCommandPoolFor(rendererComponent)) return false;
         if (!CreateGraphicsPipelineFor(rendererComponent)) return false;
-        if (!Depth::CreateDepthResourcesFor(rendererComponent)) return false;
-        if (!Swapchain::CreateFramebuffersFor(rendererComponent)) return false;
+        if (!CreateDepthResourcesFor(rendererComponent)) return false;
+        if (!CreateFramebuffersFor(rendererComponent)) return false;
         if (!CreateCommandBuffersFor(rendererComponent)) return false;
         if (!CreateSyncObjectsFor(rendererComponent)) return false;
         return true;
