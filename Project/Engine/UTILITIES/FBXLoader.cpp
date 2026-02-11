@@ -2,6 +2,8 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <cstdio>
+#include <filesystem>
 
 using namespace UTILITIES;
 
@@ -9,6 +11,23 @@ namespace UTILITIES
 {
     bool LoadFBXMesh(const std::string& filepath, std::vector<FBXVertex>& outVertices, std::vector<uint32_t>& outIndices)
     {
+        // Check if the file exists before trying
+        std::filesystem::path path(filepath);
+        std::error_code errorCode;
+        std::filesystem::path abs = std::filesystem::absolute(path, errorCode);
+        if (errorCode)
+        {
+            printf("LoadFBXMesh: Failed to resolve path '%s' (std::filesystem error: %s)\n", filepath.c_str(), errorCode.message().c_str());
+        }
+        else
+        {
+            if (!std::filesystem::exists(abs))
+            {
+                printf("LoadFBXMesh: File does not exist at '%s'\n", abs.string().c_str());
+                return false;
+            }
+        }
+
         Assimp::Importer importer;
         const aiScene* scene = importer.ReadFile(filepath,
             aiProcess_Triangulate |
@@ -18,7 +37,10 @@ namespace UTILITIES
             aiProcess_ImproveCacheLocality);
 
         if (!scene || !scene->HasMeshes())
+        {
+            printf("LoadFBXMesh: Assimp failed to load '%s' : %s\n", filepath.c_str(), importer.GetErrorString());
             return false;
+        }
 
         outVertices.clear();
         outIndices.clear();

@@ -22,6 +22,6 @@ float4 main(PSIn input) : SV_TARGET
     float3 lightDirection = normalize(float3(0.5f, 0.8f, 0.5f));
     float lambert = max(dot(normal, lightDirection), 0.0f);
     color.rgb *= (0.2f + 0.8f * lambert);
-
+    
     return color;
 }

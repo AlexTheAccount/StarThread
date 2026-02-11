@@ -7,6 +7,7 @@
 using namespace GAME;
 using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS;
+using namespace RENDERING::CAMERA_SYSTEM;
 using Registry = entt::registry;
 
 int main()
@@ -30,12 +31,22 @@ int main()
         return -1;
     }
 
+    // Create Camera entity
+    float fovDegrees = 60.0f;
+    const float degreesToRadians = 3.14159265358979323846f / 180.0f;
+    float fovRadians = fovDegrees * degreesToRadians;
+    float aspectRatio = 16.0f / 9.0f;
+    float nearPlane = 0.1f;
+    float farPlane = 100.0f;
+    entt::entity camera = CreateCamera(registry, fovRadians, aspectRatio, nearPlane, farPlane);
+
     // Create player entity and attach the TestShip model
     entt::entity player = registry.create();
     registry.emplace<Player>(player);
     AttachModelToEntity(registry, player, "TestShip");
 
-    // Recreate / re-record command buffers so draw calls reference the newly-created vertex/index buffers
+    // Upload model data to GPU
+    vkDeviceWaitIdle(rendererComponent.device);
     if (!Pipeline::CreateCommandBuffersFor(rendererComponent)) 
     {
         printf("Failed to create command buffers after model upload\n");
@@ -44,6 +55,8 @@ int main()
     // game loop
     while (!glfwWindowShouldClose(rendererComponent.window))
     {
+        CAMERA_SYSTEM::UpdateCameraAndUpload(registry, camera);
+
         Render();
         glfwPollEvents();
     }

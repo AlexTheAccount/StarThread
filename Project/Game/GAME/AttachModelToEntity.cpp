@@ -1,5 +1,6 @@
 #include "GameComponents.h"
 #include "../../Engine/RENDERING/RenderingComponents.h"
+#include <filesystem>
 
 using namespace UTILITIES;
 using namespace RENDERING;
@@ -22,18 +23,53 @@ namespace GAME
         }
 
         // Resolve model path
-        std::string modelPath = "../Models";
+        std::string modelPath = "Models";
         auto it = gameConfig->entries.find("modelPath");
         if (it != gameConfig->entries.end())
             modelPath = it->second;
 
-        std::string fullFile = modelPath + "/" + modelName + ".fbx";
+        std::filesystem::path filename = std::filesystem::path(modelName).replace_extension(".fbx");
+        std::filesystem::path candidatePath = std::filesystem::path(modelPath) / filename;
+
+        // If the file doesn't exist at the candidate path, try searching upward through parent directories for a Models folder
+        if (!std::filesystem::exists(candidatePath))
+        {
+            std::filesystem::path currentPath = std::filesystem::current_path();
+            bool found = false;
+            for (std::filesystem::path path = currentPath; path.has_parent_path(); path = path.parent_path())
+            {
+                // Try configured modelPath relative to path
+                std::filesystem::path tryPath = path / modelPath / filename;
+                if (std::filesystem::exists(tryPath))
+                {
+                    candidatePath = tryPath;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                printf("AttachModelToEntity: model file not found. Tried '%s'\n", candidatePath.string().c_str());
+                return;
+            }
+        }
+
+        // Debug: print resolved path
+        printf("AttachModelToEntity: loading model '%s' from '%s'\n", modelName.c_str(), candidatePath.string().c_str());
 
         // Load into CPU-side MeshManager
-        uint32_t meshId = MeshManager::Instance().LoadMesh(modelName, fullFile);
+        uint32_t meshId = MeshManager::Instance().LoadMesh(modelName, candidatePath.string());
+        printf("AttachModelToEntity: MeshManager.LoadMesh returned id=%u\n", meshId);
 
         const MeshResource* mesh = MeshManager::Instance().GetMesh(meshId);
-        if (!mesh) return;
+        if (!mesh) 
+        {
+            printf("AttachModelToEntity: GetMesh returned null for id=%u\n", meshId);
+            return;
+        }
+
+        printf("AttachModelToEntity: mesh vertex count=%zu index count=%zu\n", mesh->vertices.size(), mesh->indices.size());
 
         // Ensure a renderer is bound
         RendererComponent* renderer = RENDERER_HELPERS::GetGlobalRenderer();
@@ -43,8 +79,17 @@ namespace GAME
             return;
         }
 
+        // Debug: print vertexBuffer state before upload
+        printf("AttachModelToEntity: renderer->vertexBuffer before upload = 0x%p\n", (void*)renderer->vertexBuffer);
+
         // Upload vertex/index data into the renderer GPU buffers
         RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(*renderer, mesh->vertices, mesh->indices);
+
+        // Debug: print vertexBuffer state after upload
+        printf("AttachModelToEntity: renderer->vertexBuffer after upload = 0x%p\n", (void*)renderer->vertexBuffer);
+        printf("AttachModelToEntity: renderer->indexBuffer after upload = 0x%p indexCount=%zu\n",
+               (void*)renderer->indexBuffer, renderer->indexCount);
+
         renderer->indexCount = static_cast<size_t>(mesh->indices.size());
 
         // Attach rendering components to the entity

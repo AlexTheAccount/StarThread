@@ -6,6 +6,9 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <string>
+#include <entt/entt.hpp>
+#include <unordered_map>
+#include <mutex>
 
 using namespace UTILITIES;
 
@@ -68,6 +71,13 @@ namespace RENDERING
     {
         GW::MATH::GMATRIXF view{};
         GW::MATH::GMATRIXF projection{};
+    };
+
+    struct GPU_CBUFFER
+    {
+        GW::MATH::GMATRIXF World;
+        GW::MATH::GMATRIXF View;
+        GW::MATH::GMATRIXF Projection;
     };
 
     struct RendererComponent
@@ -237,6 +247,16 @@ namespace RENDERING
         namespace Utilities
         {
             std::vector<char> ReadFile(const std::string& filename);
+            std::vector<char> ReadFileBinary(const std::string& path);
+            bool CompileHLSLWithDXC(const std::string& dxcPath, const std::string& hlsl, const std::string& outSpv, const std::string& profile);
+            std::vector<char> LoadOrCompileShader(const std::string& hlslPath, const std::string& spvPath, const std::string& profile, const std::string& dxcPath = "dxc");
         }
     } // namespace RENDERER_HELPERS
+
+    // *** CAMERA_SYSTEM *** //
+    namespace CAMERA_SYSTEM
+    {
+        entt::entity CreateCamera(entt::registry& registry, float fovRadians, float aspect, float nearZ, float farZ);
+        void UpdateCameraAndUpload(entt::registry& registry, entt::entity cameraEntity);
+    }
 } // namespace RENDERING

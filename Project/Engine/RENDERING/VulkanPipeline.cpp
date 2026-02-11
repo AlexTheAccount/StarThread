@@ -63,11 +63,22 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
     bool CreateGraphicsPipelineFor(RendererComponent& rendererComponent)
     {
-        std::vector<char> vertexShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile("shaders/VertexShader.spv");
-        std::vector<char> fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile("shaders/PixelShader.spv");
+        // Load or compile shaders
+        std::string vertexHlsl = "../../Shaders/VertexShader.hlsl";
+        std::string fragmentHlsl = "../../Shaders/PixelShader.hlsl";
+        std::string vertexSpv = "shaders/VertexShader.spv";
+        std::string fragmentSpv = "shaders/PixelShader.spv";
+
+        std::vector<char> vertexShaderCode = RENDERING::RENDERER_HELPERS::Utilities::LoadOrCompileShader(vertexHlsl, vertexSpv, "vs_6_0");
+        std::vector<char> fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utilities::LoadOrCompileShader(fragmentHlsl, fragmentSpv, "ps_6_0");
+
+        // fallback to existing SPV if runtime compilation failed
+        if (vertexShaderCode.empty()) vertexShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile(vertexSpv);
+        if (fragmentShaderCode.empty()) fragmentShaderCode = RENDERING::RENDERER_HELPERS::Utilities::ReadFile(fragmentSpv);
+
         if (vertexShaderCode.empty() || fragmentShaderCode.empty())
         {
-            printf("Failed to load shaders\n");
+            printf("Failed to load or compile shaders\n");
             return false;
         }
 
@@ -259,7 +270,7 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
         // Create uniform buffer
         {
-            VkDeviceSize uboSize = sizeof(float) * 16 * 2; // view + projection
+            VkDeviceSize uboSize = sizeof(RENDERING::GPU_CBUFFER);
             try
             {
                 RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, uboSize,
@@ -319,7 +330,7 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
         // Update descriptor sets
         {
-            VkDeviceSize uboSize = sizeof(float) * 16 * 2;
+            VkDeviceSize uboSize = sizeof(RENDERING::GPU_CBUFFER);
 
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = rendererComponent.uniformBuffer;
