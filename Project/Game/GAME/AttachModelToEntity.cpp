@@ -80,17 +80,23 @@ namespace GAME
         }
 
         // Debug: print vertexBuffer state before upload
-        printf("AttachModelToEntity: renderer->vertexBuffer before upload = 0x%p\n", (void*)renderer->vertexBuffer);
+        printf("AttachModelToEntity: renderer->vertexBuffer before upload = 0x%llx\n", (unsigned long long)renderer->vertexBuffer);
 
         // Upload vertex/index data into the renderer GPU buffers
         RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(*renderer, mesh->vertices, mesh->indices);
 
         // Debug: print vertexBuffer state after upload
-        printf("AttachModelToEntity: renderer->vertexBuffer after upload = 0x%p\n", (void*)renderer->vertexBuffer);
-        printf("AttachModelToEntity: renderer->indexBuffer after upload = 0x%p indexCount=%zu\n",
-               (void*)renderer->indexBuffer, renderer->indexCount);
+        printf("AttachModelToEntity: renderer->vertexBuffer after upload = 0x%llx\n", (unsigned long long)renderer->vertexBuffer);
+        printf("AttachModelToEntity: renderer->indexBuffer after upload = 0x%llx indexCount=%zu\n",
+            (unsigned long long)renderer->indexBuffer, renderer->indexCount);
 
         renderer->indexCount = static_cast<size_t>(mesh->indices.size());
+
+        // Re-record command buffers so they bind the newly created vertex/index buffers
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateCommandBuffersFor(*renderer))
+        {
+            printf("AttachModelToEntity: failed to re-record command buffers after mesh upload\n");
+        }
 
         // Attach rendering components to the entity
         registry.emplace_or_replace<RENDERING::MeshHandle>(entity, RENDERING::MeshHandle{ meshId });

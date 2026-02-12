@@ -12,16 +12,11 @@ struct PSIn
     float3 Normal : TEXCOORD1;
 };
 
-Texture2D diffTexture : register(t1);
-SamplerState SampleType : register(s1);
+Texture2D diffTexture : register(t2);
+SamplerState SampleType : register(s2);
 
-float4 main(PSIn input) : SV_TARGET
+float4 main(float4 pos : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET
 {
-    float3 normal = normalize(input.Normal);
-    float4 color = diffTexture.Sample(SampleType, input.UV);
-    float3 lightDirection = normalize(float3(0.5f, 0.8f, 0.5f));
-    float lambert = max(dot(normal, lightDirection), 0.0f);
-    color.rgb *= (0.2f + 0.8f * lambert);
-    
-    return color;
+    float4 textureColor = diffTexture.Sample(SampleType, texcoord);
+    return textureColor;
 }

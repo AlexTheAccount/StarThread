@@ -19,8 +19,11 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+        // Query a supported depth format instead of hardcoding
+        VkFormat depthFormat = RENDERING::RENDERER_HELPERS::Depth::FindDepthFormat(rendererComponent);
+
         VkAttachmentDescription depthAttachment{};
-        depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+        depthAttachment.format = depthFormat;
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -51,6 +54,18 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         renderPassInfo.pAttachments = attachments.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
+
+        // Add subpass dependency to handle layout transitions and synchronization between render pass and engine
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
 
         if (vkCreateRenderPass(rendererComponent.device, &renderPassInfo, nullptr, &rendererComponent.renderPass) != VK_SUCCESS)
         {
@@ -196,21 +211,28 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         depthStencil.back = {};
 
         // descriptor bindings
-        VkDescriptorSetLayoutBinding uboBinding{};
-        uboBinding.binding = 0; // match cbuffer register(b0)
-        uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboBinding.descriptorCount = 1;
-        uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-        uboBinding.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding uboBinding0{};
+        uboBinding0.binding = 0;
+        uboBinding0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboBinding0.descriptorCount = 1;
+        uboBinding0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        uboBinding0.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutBinding uboBinding1{};
+        uboBinding1.binding = 1;
+        uboBinding1.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboBinding1.descriptorCount = 1;
+        uboBinding1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboBinding1.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding samplerBinding{};
-        samplerBinding.binding = 1; // sample at binding 1
+        samplerBinding.binding = 2;
         samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerBinding.descriptorCount = 1;
-        samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
         samplerBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboBinding, samplerBinding };
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboBinding0, uboBinding1, samplerBinding };
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -228,11 +250,13 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         }
 
         // Descriptor pool and set allocation
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[0].descriptorCount = 1;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[1].descriptorCount = 1;
+        poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[2].descriptorCount = 1;
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -321,9 +345,9 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             }
         }
 
+        // Create a simple 1x1 white texture for the default
         if (rendererComponent.textureImageView == VK_NULL_HANDLE)
         {
-            printf("No texture image view found, creating a default white texture\n");
             unsigned char whitePixel[4] = { 255u, 255u, 255u, 255u };
             RENDERING::RENDERER_HELPERS::Image::CreateTextureFromPixelsFor(rendererComponent, whitePixel, 1u, 1u, VK_FORMAT_R8G8B8A8_UNORM);
         }
@@ -342,8 +366,9 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             imageInfo.imageView = rendererComponent.textureImageView;
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
+            // binding 0 -> bufferInfo0
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = rendererComponent.descriptorSet;
             descriptorWrites[0].dstBinding = 0;
@@ -352,13 +377,23 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             descriptorWrites[0].descriptorCount = 1;
             descriptorWrites[0].pBufferInfo = &bufferInfo;
 
+            // binding 1 -> bufferInfo1
             descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[1].dstSet = rendererComponent.descriptorSet;
             descriptorWrites[1].dstBinding = 1;
             descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
+            descriptorWrites[1].pBufferInfo = &bufferInfo;
+
+            // binding 2 -> imageInfo
+            descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[2].dstSet = rendererComponent.descriptorSet;
+            descriptorWrites[2].dstBinding = 2;
+            descriptorWrites[2].dstArrayElement = 0;
+            descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[2].descriptorCount = 1;
+            descriptorWrites[2].pImageInfo = &imageInfo;
 
             vkUpdateDescriptorSets(rendererComponent.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -421,6 +456,16 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
     bool CreateCommandBuffersFor(RendererComponent& rendererComponent)
     {
+        // if command buffers aren't full, empty them for rerecording
+        if (!rendererComponent.commandBuffers.empty() && rendererComponent.commandPool != VK_NULL_HANDLE)
+        {
+            vkFreeCommandBuffers(rendererComponent.device,
+                rendererComponent.commandPool,
+                static_cast<uint32_t>(rendererComponent.commandBuffers.size()),
+                rendererComponent.commandBuffers.data());
+            rendererComponent.commandBuffers.clear();
+        }
+
         rendererComponent.commandBuffers.resize(rendererComponent.swapchainFramebuffers.size());
 
         VkCommandBufferAllocateInfo allocateInfo{};
@@ -470,15 +515,6 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
                 &rendererComponent.descriptorSet,
                 0, nullptr);
 
-            // Push-constant
-            float modelMatrix[16];
-            std::memset(modelMatrix, 0, sizeof(modelMatrix));
-            modelMatrix[0] = 1.0f;
-            modelMatrix[5] = 1.0f;
-            modelMatrix[10] = 1.0f;
-            modelMatrix[15] = 1.0f;
-            vkCmdPushConstants(rendererComponent.commandBuffers[buffer], rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(modelMatrix), modelMatrix);
-
             // Bind vertex buffer and draw
             if (rendererComponent.vertexBuffer != VK_NULL_HANDLE)
             {
@@ -500,7 +536,6 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             else
             {
                 printf("No vertex buffer found, skipping draw to avoid validation error\n");
-
             }
 
             vkCmdEndRenderPass(rendererComponent.commandBuffers[buffer]);

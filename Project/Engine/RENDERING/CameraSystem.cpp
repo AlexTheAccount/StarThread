@@ -48,13 +48,19 @@ namespace RENDERING::CAMERA_SYSTEM
         GW::MATH::GMATRIXF view = GIdentityMatrixF;
         GW::MATH::GMatrix::InverseF(world, view);
 
+        // transpose view and projection for GPU
+        GW::MATH::GMATRIXF viewT = GIdentityMatrixF;
+        GW::MATH::GMATRIXF projT = GIdentityMatrixF;
+        GW::MATH::GMatrix::TransposeF(view, viewT);
+        GW::MATH::GMatrix::TransposeF(camera.projection, projT);
+
         camera.view = view;
 
         // Prepare GPU cbuffer
         GPU_CBUFFER cbuffer{};
         cbuffer.World = GIdentityMatrixF;
-        cbuffer.View = camera.view;
-        cbuffer.Projection = camera.projection;
+        cbuffer.View = viewT;
+        cbuffer.Projection = projT;
 
         RENDERER_HELPERS::UpdateUniforms(&cbuffer, sizeof(cbuffer));
     }

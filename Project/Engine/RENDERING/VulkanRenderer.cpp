@@ -121,6 +121,31 @@ namespace RENDERING::RENDERER_HELPERS
 
         vkResetFences(rendererComponent.device, 1, &rendererComponent.inFlightFences[rendererComponent.currentFrame]);
 
+        // Update model matrix into the uniform buffer
+        {
+            // Construct an identity model matrix
+            float modelMatrix[16];
+            std::memset(modelMatrix, 0, sizeof(modelMatrix));
+            modelMatrix[0] = 1.0f;
+            modelMatrix[5] = 1.0f;
+            modelMatrix[10] = 1.0f;
+            modelMatrix[15] = 1.0f;
+
+            // Map the uniform buffer memory and copy the model matrix into the World field
+            void* mapped = nullptr;
+            VkResult mapRes = vkMapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory, 0, sizeof(modelMatrix), 0, &mapped);
+            if (mapRes == VK_SUCCESS && mapped != nullptr)
+            {
+                std::memcpy(mapped, modelMatrix, sizeof(modelMatrix)); // World starts at offset 0 in GPU_CBUFFER
+                vkUnmapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory);
+            }
+            else
+            {
+                printf("Failed to map uniform buffer memory for model matrix: %d\n", mapRes);
+                // continue: submit may still fail if shader expects valid data
+            }
+        }
+
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -146,6 +171,7 @@ namespace RENDERING::RENDERER_HELPERS
         if (vkQueueSubmit(rendererComponent.graphicsQueue, 1, &submitInfo, rendererComponent.inFlightFences[rendererComponent.currentFrame]) != VK_SUCCESS)
         {
             printf("Failed to submit draw command buffer\n");
+            vkDeviceWaitIdle(rendererComponent.device);
             return;
         }
 
