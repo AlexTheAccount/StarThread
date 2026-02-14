@@ -2,10 +2,6 @@
 #include <vector>
 #include <stdexcept>
 
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Image;
-using namespace RENDERING::RENDERER_HELPERS::Memory;
-
 namespace RENDERING::RENDERER_HELPERS::Depth
 {
     VkFormat FindSupportedFormat(RendererComponent& rendererComponent, 

@@ -3,9 +3,6 @@
 #include <stdexcept>
 #include <cstring>
 
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Memory;
-
 namespace RENDERING::RENDERER_HELPERS
 {
     namespace Utilities
@@ -124,91 +121,90 @@ namespace RENDERING::RENDERER_HELPERS
             vkFreeCommandBuffers(rendererComponent.device, rendererComponent.commandPool, 1, &commandBuffer);
         }
 
-        void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent, const std::vector<FBXVertex>& vertices, const std::vector<uint32_t>& indices)
+        void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent,
+            std::vector<FBXVertex> vertices, std::vector<uint32_t> indices,
+            VkBuffer& outVertexBuffer, VkDeviceMemory& outVertexMemory,
+            VkBuffer& outIndexBuffer, VkDeviceMemory& outIndexMemory, size_t& outIndexCount)
         {
-            // Require vertices
-            if (vertices.empty())
+            // null checks
             {
-                printf("CreateVertexAndIndexBuffersFor: no vertices, aborting buffer creation\n");
-                return;
+                if (rendererComponent.device == VK_NULL_HANDLE)
+                {
+                    throw std::runtime_error("CreateVertexAndIndexBuffersFor: rendererComponent.device is null");
+                }
+                else if (outVertexBuffer != VK_NULL_HANDLE || outVertexMemory != VK_NULL_HANDLE || 
+                         outIndexBuffer != VK_NULL_HANDLE || outIndexMemory != VK_NULL_HANDLE)
+                {
+                    throw std::runtime_error("CreateVertexAndIndexBuffersFor: output buffer or memory parameters must be null handles");
+                }
             }
 
-            VkDeviceSize vertexBufferSize = sizeof(FBXVertex) * vertices.size();
-            VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+            // Calculate byte sizes
+            VkDeviceSize vertexBufferSize = vertices.empty() ? 0 : sizeof(FBXVertex) * vertices.size();
+            VkDeviceSize indexBufferSize  = indices.empty()  ? 0 : sizeof(uint32_t) * indices.size();
 
-            // Staging vertex buffer
-            VkBuffer stagingVertexBuffer;
-            VkDeviceMemory stagingVertexMemory;
+            if (vertexBufferSize == 0 || indexBufferSize == 0)
+            {
+                throw std::runtime_error("CreateVertexAndIndexBuffersFor: vertices or indices empty");
+            }
+
+            // Create staging vertex buffer
+            VkBuffer stagingVertexBuffer = VK_NULL_HANDLE;
+            VkDeviceMemory stagingVertexMemory = VK_NULL_HANDLE;
             CreateBufferFor(rendererComponent, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                stagingVertexBuffer, stagingVertexMemory);
+                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                            stagingVertexBuffer, stagingVertexMemory);
 
-            void* data = nullptr;
-            vkMapMemory(rendererComponent.device, stagingVertexMemory, 0, vertexBufferSize, 0, &data);
-            memcpy(data, vertices.data(), static_cast<size_t>(vertexBufferSize));
-            vkUnmapMemory(rendererComponent.device, stagingVertexMemory);
-
-            // Create device-local vertex buffer
-            CreateBufferFor(rendererComponent, vertexBufferSize,
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                rendererComponent.vertexBuffer, rendererComponent.vertexBufferMemory);
-
-            // If indices present, create index buffers
+            // Create staging index buffer
             VkBuffer stagingIndexBuffer = VK_NULL_HANDLE;
             VkDeviceMemory stagingIndexMemory = VK_NULL_HANDLE;
-            bool haveIndexBuffer = !indices.empty();
-            if (haveIndexBuffer)
-            {
-                CreateBufferFor(rendererComponent, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    stagingIndexBuffer, stagingIndexMemory);
+            CreateBufferFor(rendererComponent, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                            stagingIndexBuffer, stagingIndexMemory);
 
-                vkMapMemory(rendererComponent.device, stagingIndexMemory, 0, indexBufferSize, 0, &data);
-                memcpy(data, indices.data(), static_cast<size_t>(indexBufferSize));
-                vkUnmapMemory(rendererComponent.device, stagingIndexMemory);
+            // Map and copy vertex data
+            void* data = nullptr;
+            vkMapMemory(rendererComponent.device, stagingVertexMemory, 0, vertexBufferSize, 0, &data);
+            std::memcpy(data, vertices.data(), static_cast<size_t>(vertexBufferSize));
+            vkUnmapMemory(rendererComponent.device, stagingVertexMemory);
 
-                CreateBufferFor(rendererComponent, indexBufferSize,
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    rendererComponent.indexBuffer, rendererComponent.indexBufferMemory);
-            }
-            else
-            {
-                printf("CreateVertexAndIndexBuffersFor: no indices provided, skipping index buffer creation\n");
-                rendererComponent.indexBuffer = VK_NULL_HANDLE;
-            }
+            // Map and copy index data
+            data = nullptr;
+            vkMapMemory(rendererComponent.device, stagingIndexMemory, 0, indexBufferSize, 0, &data);
+            std::memcpy(data, indices.data(), static_cast<size_t>(indexBufferSize));
+            vkUnmapMemory(rendererComponent.device, stagingIndexMemory);
 
-            // Copy staging -> device local
+            // Create device-local destination buffers
+            CreateBufferFor(rendererComponent, vertexBufferSize,
+                            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outVertexBuffer, outVertexMemory);
+
+            CreateBufferFor(rendererComponent, indexBufferSize,
+                            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outIndexBuffer, outIndexMemory);
+
+            // Copy staging to device local
             VkCommandBuffer commandBuffer = BeginSingleTimeCommandsFor(rendererComponent);
 
             VkBufferCopy copyRegion{};
+            copyRegion.srcOffset = 0;
+            copyRegion.dstOffset = 0;
             copyRegion.size = vertexBufferSize;
-            vkCmdCopyBuffer(commandBuffer, stagingVertexBuffer, rendererComponent.vertexBuffer, 1, &copyRegion);
+            vkCmdCopyBuffer(commandBuffer, stagingVertexBuffer, outVertexBuffer, 1, &copyRegion);
 
-            if (haveIndexBuffer)
-            {
-                copyRegion.size = indexBufferSize;
-                vkCmdCopyBuffer(commandBuffer, stagingIndexBuffer, rendererComponent.indexBuffer, 1, &copyRegion);
-            }
+            copyRegion.size = indexBufferSize;
+            vkCmdCopyBuffer(commandBuffer, stagingIndexBuffer, outIndexBuffer, 1, &copyRegion);
 
             EndSingleTimeCommandsFor(rendererComponent, commandBuffer);
 
-            // Clean up staging resources
+            // Cleanup staging buffers
             vkDestroyBuffer(rendererComponent.device, stagingVertexBuffer, nullptr);
             vkFreeMemory(rendererComponent.device, stagingVertexMemory, nullptr);
+            vkDestroyBuffer(rendererComponent.device, stagingIndexBuffer, nullptr);
+            vkFreeMemory(rendererComponent.device, stagingIndexMemory, nullptr);
 
-            if (haveIndexBuffer)
-            {
-                vkDestroyBuffer(rendererComponent.device, stagingIndexBuffer, nullptr);
-                vkFreeMemory(rendererComponent.device, stagingIndexMemory, nullptr);
-            }
-
-            // Set indexCount for draw calls
-            if (haveIndexBuffer)
-                rendererComponent.indexCount = indices.size();
-            else
-                rendererComponent.indexCount = vertices.size();
+            // Set returned index count
+            outIndexCount = indices.size();
         }
     } // namespace Memory
 

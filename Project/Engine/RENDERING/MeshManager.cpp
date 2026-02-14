@@ -21,12 +21,20 @@ namespace RENDERING
         if (!UTILITIES::LoadFBXMesh(filepath, vertices, index))
             return UINT32_MAX;
 
-        MeshResource resource;
-        resource.vertices = std::move(vertices);
-        resource.indices = std::move(index);
+        resources.emplace_back();
+        auto& newResourses = resources.back();
 
-        uint32_t id = static_cast<uint32_t>(resources.size());
-        resources.push_back(std::move(resource));
+        RENDERING::RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(
+            *RENDERER_HELPERS::GetGlobalRenderer(), vertices, index,
+            newResourses.vertexBuffer, newResourses.vertexBufferMemory,
+            newResourses.indexBuffer, newResourses.indexBufferMemory, newResourses.indexCount);
+
+        // move CPU data into the same element
+        newResourses.vertices = std::move(vertices);
+        newResourses.indices = std::move(index);
+
+        // id is the index of the newly added resource
+        uint32_t id = static_cast<uint32_t>(resources.size() - 1);
         nameToId[name] = id;
         return id;
     }

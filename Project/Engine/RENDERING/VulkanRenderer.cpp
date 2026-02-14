@@ -2,13 +2,8 @@
 #include <stdexcept>
 #include <fstream>
 #include <cstring>
-
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Depth;
-using namespace RENDERING::RENDERER_HELPERS::Memory;
-using namespace RENDERING::RENDERER_HELPERS::Pipeline;
-using namespace RENDERING::RENDERER_HELPERS::Swapchain;
-using namespace RENDERING::RENDERER_HELPERS::Device;
+#include <entt/entt.hpp>
+#include "../ENGINE/EngineComponents.h"
 
 namespace RENDERING::RENDERER_HELPERS
 {
@@ -67,82 +62,131 @@ namespace RENDERING::RENDERER_HELPERS
     void DrawFrameFor(RendererComponent& rendererComponent)
     {
         // Validate necessary sync structures exist
-        if (rendererComponent.imageAvailableSemaphores.empty() ||
-            rendererComponent.inFlightFences.empty() ||
-            rendererComponent.renderFinishedSemaphores.empty() ||
-            rendererComponent.commandBuffers.empty())
         {
-            printf("Missing synchronization objects or command buffers\n");
-            return;
+            if (rendererComponent.imageAvailableSemaphores.empty() ||
+                rendererComponent.inFlightFences.empty() ||
+                rendererComponent.renderFinishedSemaphores.empty() ||
+                rendererComponent.commandBuffers.empty())
+            {
+                printf("Missing synchronization objects or command buffers\n");
+                return;
+            }
+
+            if (rendererComponent.currentFrame >= rendererComponent.imageAvailableSemaphores.size() ||
+                rendererComponent.currentFrame >= rendererComponent.inFlightFences.size())
+            {
+                printf("Out-of-range currentFrame=%zu avail=%zu fences=%zu\n",
+                    rendererComponent.currentFrame, rendererComponent.imageAvailableSemaphores.size(),
+                    rendererComponent.inFlightFences.size());
+                return;
+            }
+
+            if (rendererComponent.imageAvailableSemaphores[rendererComponent.currentFrame] == VK_NULL_HANDLE ||
+                rendererComponent.inFlightFences[rendererComponent.currentFrame] == VK_NULL_HANDLE)
+            {
+                printf("Null per-frame sync handle at frame %zu\n", rendererComponent.currentFrame);
+                return;
+            }
         }
 
-        if (rendererComponent.currentFrame >= rendererComponent.imageAvailableSemaphores.size() ||
-            rendererComponent.currentFrame >= rendererComponent.inFlightFences.size())
-        {
-            printf("Out-of-range currentFrame=%zu avail=%zu fences=%zu\n",
-                rendererComponent.currentFrame, rendererComponent.imageAvailableSemaphores.size(),
-                rendererComponent.inFlightFences.size());
-            return;
-        }
-
-        if (rendererComponent.imageAvailableSemaphores[rendererComponent.currentFrame] == VK_NULL_HANDLE ||
-            rendererComponent.inFlightFences[rendererComponent.currentFrame] == VK_NULL_HANDLE)
-        {
-            printf("Null per-frame sync handle at frame %zu\n", rendererComponent.currentFrame);
-            return;
-        }
-
+        // Wait for the current frame's in-flight fence to ensure the previous frame has finished before we reuse its resources
         vkWaitForFences(rendererComponent.device, 1, &rendererComponent.inFlightFences[rendererComponent.currentFrame], VK_TRUE, UINT64_MAX);
-
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(rendererComponent.device, rendererComponent.swapchain, UINT64_MAX,
             rendererComponent.imageAvailableSemaphores[rendererComponent.currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-        if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            RecreateSwapchainFor(rendererComponent);
-            return;
-        }
-        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-        {
-            printf("Failed to acquire swap chain image\n");
-            return;
-        }
 
-        if (rendererComponent.imagesInFlight.size() > imageIndex && rendererComponent.imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-        {
-            vkWaitForFences(rendererComponent.device, 1, &rendererComponent.imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-        }
-
-        if (rendererComponent.imagesInFlight.size() > imageIndex)
-        {
-            rendererComponent.imagesInFlight[imageIndex] = rendererComponent.inFlightFences[rendererComponent.currentFrame];
-        }
-
-        vkResetFences(rendererComponent.device, 1, &rendererComponent.inFlightFences[rendererComponent.currentFrame]);
-
-        // Update model matrix into the uniform buffer
-        {
-            // Construct an identity model matrix
-            float modelMatrix[16];
-            std::memset(modelMatrix, 0, sizeof(modelMatrix));
-            modelMatrix[0] = 1.0f;
-            modelMatrix[5] = 1.0f;
-            modelMatrix[10] = 1.0f;
-            modelMatrix[15] = 1.0f;
-
-            // Map the uniform buffer memory and copy the model matrix into the World field
-            void* mapped = nullptr;
-            VkResult mapRes = vkMapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory, 0, sizeof(modelMatrix), 0, &mapped);
-            if (mapRes == VK_SUCCESS && mapped != nullptr)
+            if (result == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                std::memcpy(mapped, modelMatrix, sizeof(modelMatrix)); // World starts at offset 0 in GPU_CBUFFER
-                vkUnmapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory);
+                RecreateSwapchainFor(rendererComponent);
+                return;
+            }
+            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+            {
+                printf("Failed to acquire swap chain image\n");
+                return;
+            }
+
+            if (rendererComponent.imagesInFlight.size() > imageIndex && rendererComponent.imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+            {
+                vkWaitForFences(rendererComponent.device, 1, &rendererComponent.imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+            }
+
+            if (rendererComponent.imagesInFlight.size() > imageIndex)
+            {
+                rendererComponent.imagesInFlight[imageIndex] = rendererComponent.inFlightFences[rendererComponent.currentFrame];
+            }
+
+            vkResetFences(rendererComponent.device, 1, &rendererComponent.inFlightFences[rendererComponent.currentFrame]);
+        }
+
+        // record commands for this image
+        {
+            VkCommandBuffer command = rendererComponent.commandBuffers[imageIndex];
+
+            VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+            VkResult beginResult = vkBeginCommandBuffer(command, &beginInfo);
+            if (beginResult != VK_SUCCESS)
+            {
+                printf("vkBeginCommandBuffer failed for per-frame command: %d\n", beginResult);
+                return;
+            }
+
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = rendererComponent.renderPass;
+            renderPassInfo.framebuffer = rendererComponent.swapchainFramebuffers[imageIndex];
+            renderPassInfo.renderArea.offset = { 0, 0 };
+            renderPassInfo.renderArea.extent = rendererComponent.swapchainExtent;
+
+            // provide clear values for attachments
+            std::array<VkClearValue, 2> clearValues{};
+            clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+            clearValues[1].depthStencil = { 1.0f, 0 }; // depth clear
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
+
+            vkCmdBeginRenderPass(command, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, rendererComponent.graphicsPipeline);
+            if (rendererComponent.descriptorSet != VK_NULL_HANDLE)
+            {
+                vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    rendererComponent.pipelineLayout, 0, 1,
+                    &rendererComponent.descriptorSet, 0, nullptr);
             }
             else
             {
-                printf("Failed to map uniform buffer memory for model matrix: %d\n", mapRes);
-                // continue: submit may still fail if shader expects valid data
+                printf("Warning: no descriptor set bound; draw calls may be invalid\n");
+            }
+
+            // iterate entities and draw
+            Registry& registry = ENGINE::GlobalRegistry();
+            auto view = registry.view<RENDERING::MeshHandle, RENDERING::Transform>();
+            for (auto entity : view) // view has a ghost error, can be ignored
+            {
+                const auto& [meshHandle, transform] = view.get<RENDERING::MeshHandle, RENDERING::Transform>(entity);
+
+                const auto* mesh = MeshManager::Instance().GetMesh(meshHandle.id);
+                if (!mesh || mesh->vertexBuffer == VK_NULL_HANDLE || mesh->indexBuffer == VK_NULL_HANDLE)
+                    continue;
+
+                VkBuffer vertexBuffer = mesh->vertexBuffer;
+                VkDeviceSize offset = 0;
+                vkCmdBindVertexBuffers(command, 0, 1, &vertexBuffer, &offset);
+                vkCmdBindIndexBuffer(command, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+                // push model matrix
+                vkCmdPushConstants(command, rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GW::MATH::GMATRIXF), &transform.world);
+
+                vkCmdDrawIndexed(command, static_cast<uint32_t>(mesh->indexCount), 1, 0, 0, 0);
+            }
+
+            vkCmdEndRenderPass(command);
+            if (vkEndCommandBuffer(command) != VK_SUCCESS)
+            {
+                printf("Failed to record command buffer\n");
+                return;
             }
         }
 
@@ -213,6 +257,7 @@ namespace RENDERING::RENDERER_HELPERS
     {
         RendererComponent* rendererComponent = GetBoundRenderer();
         if (!rendererComponent) return;
+
         DrawFrameFor(*rendererComponent);
     }
 

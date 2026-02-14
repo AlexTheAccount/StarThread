@@ -47,13 +47,70 @@ namespace RENDERING
     {
         std::vector<FBXVertex> vertices;
         std::vector<uint32_t> indices;
+        VkBuffer vertexBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+        VkBuffer indexBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+        size_t indexCount = 0;
     };
 
     struct Transform
     {
-        GW::MATH::GVECTORF position{{{0.0f, 0.0f, 0.0f, 0.0f}}};
-        GW::MATH::GVECTORF rotation{{{0.0f, 0.0f, 0.0f, 0.0f}}};
-        GW::MATH::GVECTORF scale{{{1.0f, 1.0f, 1.0f, 0.0f}}};
+        entt::entity parent = entt::null;
+        // Local
+        GW::MATH::GVECTORF position{ {0.0f, 0.0f, 0.0f, 0.0f} };
+        GW::MATH::GQUATERNIONF rotation{ {0.0f, 0.0f, 0.0f, 1.0f} };
+        GW::MATH::GVECTORF scale{ {1.0f, 1.0f, 1.0f, 0.0f} };
+
+        GW::MATH::GMATRIXF world{};
+        bool recomputeWorld = true;
+
+        void SetPosition(const GW::MATH::GVECTORF & newPosition) { position = newPosition; recomputeWorld = true; }
+        void SetRotation(const GW::MATH::GVECTORF & newRotation) 
+        { 
+            rotation.x = newRotation.x;
+            rotation.y = newRotation.y;
+            rotation.z = newRotation.z;
+            rotation.w = newRotation.w;
+            recomputeWorld = true; 
+        }
+        void SetScale(const GW::MATH::GVECTORF & newScale) { scale = newScale; recomputeWorld = true; }
+        void Translate(const GW::MATH::GVECTORF & newTranslation)
+        {
+            position = GW::MATH::GVECTORF
+            {
+                {
+                    position.data[0] + newTranslation.data[0],
+                    position.data[1] + newTranslation.data[1],
+                    position.data[2] + newTranslation.data[2],
+                    0.0f
+                }
+            };
+            recomputeWorld = true;
+        }
+        void ScaleBy(const GW::MATH::GVECTORF & newScale)
+        {
+            scale = GW::MATH::GVECTORF
+            {
+                {
+                    scale.data[0] * newScale.data[0],
+                    scale.data[1] * newScale.data[1],
+                    scale.data[2] * newScale.data[2],
+                    0.0f
+                }
+            };
+            recomputeWorld = true;
+        }
+        void RecalculateWorld()
+        {
+            GW::MATH::GMATRIXF identity = GW::MATH::GIdentityMatrixF;
+            GW::MATH::GMATRIXF translate = GW::MATH::GIdentityMatrixF;
+            GW::MATH::GMatrix::TranslateGlobalF(identity, position, translate);
+
+            world = translate;
+
+            recomputeWorld = false;
+        }
     };
 
     struct MeshHandle { uint32_t id = UINT32_MAX; };
@@ -170,7 +227,7 @@ namespace RENDERING
         bool InitializeWindow(uint32_t width, uint32_t height, const char* title); 
         void FramebufferResize(GLFWwindow* window, int width, int height);
 
-        // Draw frame
+        // Draw frame:
         void DrawFrame();
         void DrawFrameFor(RendererComponent& rendererComponent);
 
@@ -217,7 +274,10 @@ namespace RENDERING
                                  VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
             VkCommandBuffer BeginSingleTimeCommandsFor(RendererComponent& rendererComponent);
             void EndSingleTimeCommandsFor(RendererComponent& rendererComponent, VkCommandBuffer commandBuffer);
-            void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent, const std::vector<FBXVertex>& vertices, const std::vector<uint32_t>& indices);
+            void CreateVertexAndIndexBuffersFor(RendererComponent& rendererComponent, 
+                std::vector<FBXVertex> vertices, std::vector<uint32_t> indices,
+                VkBuffer& outVertexBuffer, VkDeviceMemory& outVertexMemory, 
+                VkBuffer& outIndexBuffer, VkDeviceMemory& outIndexMemory, size_t& outIndexCount);
         }
 
         // Image / texture utilities
@@ -259,4 +319,17 @@ namespace RENDERING
         entt::entity CreateCamera(entt::registry& registry, float fovRadians, float aspect, float nearZ, float farZ);
         void UpdateCameraAndUpload(entt::registry& registry, entt::entity cameraEntity);
     }
+
+    // *** Using declarations *** //
+    using namespace RENDERING;
+    using namespace RENDERING::RENDERER_HELPERS;
+    using namespace RENDERING::RENDERER_HELPERS::Memory;
+    using namespace RENDERING::RENDERER_HELPERS::Depth;
+    using namespace RENDERING::RENDERER_HELPERS::Memory;
+    using namespace RENDERING::RENDERER_HELPERS::Pipeline;
+    using namespace RENDERING::RENDERER_HELPERS::Swapchain;
+    using namespace RENDERING::RENDERER_HELPERS::Device;
+    using namespace RENDERING::RENDERER_HELPERS::Image;
+
+    using Registry = entt::registry;
 } // namespace RENDERING

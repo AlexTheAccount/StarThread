@@ -1,6 +1,8 @@
 #pragma once
 #include <entt/entt.hpp>
 #include "../../gateware-26.33.16/Gateware.h"
+#include "../../Engine/ENGINE/EngineComponents.h"
+#include "../../Engine/RENDERING/RenderingComponents.h"
 
 namespace GAME
 {
@@ -25,11 +27,6 @@ namespace GAME
     struct InvulnerabilityState
     {
         float cooldown;
-    };
-
-    struct Transform
-    {
-        GW::MATH::GMATRIXF transform;
     };
 
     struct Velocity
@@ -70,7 +67,6 @@ namespace GAME
     // *** GLOBALS *** //
     inline entt::registry& GlobalRegistry()
     {
-        static entt::registry registry;
-        return registry;
+        return ENGINE::GlobalRegistry();
     }
 }

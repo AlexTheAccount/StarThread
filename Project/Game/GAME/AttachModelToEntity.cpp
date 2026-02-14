@@ -75,28 +75,14 @@ namespace GAME
         RendererComponent* renderer = RENDERER_HELPERS::GetGlobalRenderer();
         if (!renderer)
         {
-            printf("No RendererComponent found in GlobalRegistry; cannot attach model to entity\n");
-            return;
+            printf("AttachModelToEntity: warning - no bound RendererComponent; GPU buffers may not have been created\n");
         }
 
-        // Debug: print vertexBuffer state before upload
-        printf("AttachModelToEntity: renderer->vertexBuffer before upload = 0x%llx\n", (unsigned long long)renderer->vertexBuffer);
-
-        // Upload vertex/index data into the renderer GPU buffers
-        RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(*renderer, mesh->vertices, mesh->indices);
-
-        // Debug: print vertexBuffer state after upload
-        printf("AttachModelToEntity: renderer->vertexBuffer after upload = 0x%llx\n", (unsigned long long)renderer->vertexBuffer);
-        printf("AttachModelToEntity: renderer->indexBuffer after upload = 0x%llx indexCount=%zu\n",
-            (unsigned long long)renderer->indexBuffer, renderer->indexCount);
-
-        renderer->indexCount = static_cast<size_t>(mesh->indices.size());
-
-        // Re-record command buffers so they bind the newly created vertex/index buffers
-        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateCommandBuffersFor(*renderer))
-        {
-            printf("AttachModelToEntity: failed to re-record command buffers after mesh upload\n");
-        }
+        // Debug: print GPU buffer handles that MeshManager created (use the per-mesh buffers)
+        printf("AttachModelToEntity: mesh GPU vertexBuffer = 0x%llx indexBuffer = 0x%llx indexCount=%zu\n",
+               (unsigned long long)mesh->vertexBuffer,
+               (unsigned long long)mesh->indexBuffer,
+               mesh->indexCount);
 
         // Attach rendering components to the entity
         registry.emplace_or_replace<RENDERING::MeshHandle>(entity, RENDERING::MeshHandle{ meshId });
@@ -105,11 +91,13 @@ namespace GAME
         if (!registry.any_of<RENDERING::Material>(entity))
             registry.emplace<RENDERING::Material>(entity, RENDERING::Material{});
 
-        // If the entity has no GAME::Transform, give it an identity transform
-        if (!registry.any_of<GAME::Transform>(entity))
+        // If the entity has no RENDERING::Transform, give it an identity transform
+        if (!registry.any_of<RENDERING::Transform>(entity))
         {
-            GW::MATH::GMATRIXF id = GW::MATH::GIdentityMatrixF;
-            registry.emplace<GAME::Transform>(entity, GAME::Transform{ id });
+            RENDERING::Transform transform{};
+            transform.world = GW::MATH::GIdentityMatrixF;
+            transform.recomputeWorld = false;
+            registry.emplace<RENDERING::Transform>(entity, transform);
         }
     }
 }

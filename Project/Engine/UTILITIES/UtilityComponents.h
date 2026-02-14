@@ -1,3 +1,4 @@
+#pragma once
 #include <memory>
 #include "../../gateware-26.33.16/Gateware.h"
 

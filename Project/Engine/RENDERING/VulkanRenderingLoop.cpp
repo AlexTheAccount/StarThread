@@ -1,7 +1,5 @@
 #include "RenderingComponents.h"
 
-using namespace RENDERING::RENDERER_HELPERS;
-
 namespace RENDERING::RENDERER_HELPERS
 {
     void RenderingLoop()

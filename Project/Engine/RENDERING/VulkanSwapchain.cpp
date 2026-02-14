@@ -3,9 +3,6 @@
 #include <algorithm>
 #include <array>
 
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Device;
-
 namespace RENDERING::RENDERER_HELPERS::Swapchain
 {
     bool CreateSwapchainFor(RendererComponent& rendererComponent)

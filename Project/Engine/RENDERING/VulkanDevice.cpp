@@ -3,9 +3,6 @@
 #include <vector>
 #include <string>
 
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Device;
-
 namespace RENDERING::RENDERER_HELPERS::Device
 {
     bool CreateInstanceFor(RendererComponent& rendererComponent)

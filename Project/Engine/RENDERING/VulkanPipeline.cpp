@@ -2,9 +2,6 @@
 #include <array>
 #include <cstring>
 
-using namespace RENDERING;
-using namespace RENDERING::RENDERER_HELPERS::Device;
-
 namespace RENDERING::RENDERER_HELPERS::Pipeline
 {
     bool CreateRenderPassFor(RendererComponent& rendererComponent)
@@ -556,13 +553,14 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-        poolInfo.flags = 0;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
         if (vkCreateCommandPool(rendererComponent.device, &poolInfo, nullptr, &rendererComponent.commandPool) != VK_SUCCESS)
         {
             printf("Failed to create command pool\n");
             return false;
         }
+
         return true;
     }
 
