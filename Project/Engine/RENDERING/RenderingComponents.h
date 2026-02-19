@@ -14,33 +14,8 @@ using namespace UTILITIES;
 
 namespace RENDERING
 {
-    //*** FORWARD DECLARATIONS ***//
-    struct MeshResource;
-
     //*** TAGS ***//
     struct RenderableTag {};
-
-    //*** CLASSES ***//
-    class MeshManager
-    {
-    public:
-        static MeshManager& Instance();
-
-        uint32_t LoadMesh(const std::string& name, const std::string& filepath);
-
-        uint32_t GetMeshId(const std::string& name) const;
-
-        const MeshResource* GetMesh(uint32_t id) const;
-        size_t MeshCount() const;
-
-        void ReleaseCpuMeshData(uint32_t id);
-
-    private:
-        MeshManager() = default;
-        std::vector<MeshResource> resources;
-        std::unordered_map<std::string, uint32_t> nameToId;
-        mutable std::mutex mutex;
-    };
 
     //*** COMPONENTS ***//
     struct MeshResource
@@ -195,7 +170,58 @@ namespace RENDERING
         GLFWwindow* GetWindow() const { return window; }
     };
 
+    struct GeometryData
+    {
+        unsigned int indexStart, indexCount, vertexStart;
+        inline bool operator < (const GeometryData a) const 
+        {
+            return indexStart < a.indexStart;
+        }
+    };
+
+    struct GPUInstance
+    {
+        GW::MATH::GMATRIXF transform;
+        Material materialData;
+    };
+
+    struct MeshCollection
+    {
+        std::string collectionName;
+        std::vector<entt::entity> entities;
+
+        GW::MATH::GOBBF collider;
+    };
+
+    struct ModelManager
+    {
+        std::vector<MeshCollection> meshCollections;
+    };
+
+    //*** CLASSES ***//
+    class MeshManager
+    {
+    public:
+        static MeshManager& Instance();
+
+        uint32_t LoadMesh(const std::string& name, const std::string& filepath);
+
+        uint32_t GetMeshId(const std::string& name) const;
+
+        const MeshResource* GetMesh(uint32_t id) const;
+        size_t MeshCount() const;
+
+        void ReleaseCpuMeshData(uint32_t id);
+
+    private:
+        MeshManager() = default;
+        std::vector<MeshResource> resources;
+        std::unordered_map<std::string, uint32_t> nameToId;
+        mutable std::mutex mutex;
+    };
+
     // *** FUNCTIONS *** //
+    void SetDebugName(VkDevice device, VkObjectType objectType, uint64_t objectHandle, const char* name);
 
     // *** RENDERER HELPERS *** //
     namespace RENDERER_HELPERS

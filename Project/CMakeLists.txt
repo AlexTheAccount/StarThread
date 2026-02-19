@@ -67,6 +67,16 @@ target_sources(StarThread PRIVATE ${C_GAME_FILES})
 target_sources(StarThread PRIVATE ${C_ENGINE_FILES})
 target_sources(StarThread PRIVATE ${SHADER_FILES})
 
+set(IMGUI_SOURCES
+  "${imgui_SOURCE_DIR}/imgui.cpp"
+  "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
+)
+target_sources(StarThread PRIVATE ${IMGUI_SOURCES})
+
 # Shader Compilation
 find_program(DXC_EXECUTABLE dxc)
 if(NOT DXC_EXECUTABLE)
@@ -120,7 +130,7 @@ target_include_directories(StarThread PRIVATE ${CMAKE_SOURCE_DIR}/Source)
 target_include_directories(StarThread PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_include_directories(StarThread PRIVATE "${imgui_SOURCE_DIR}")
 target_include_directories(StarThread PRIVATE "${assimp_SOURCE_DIR}/include")
-target_link_libraries(StarThread PRIVATE assimp glfw ${Vulkan_LIBRARIES})
+target_link_libraries(StarThread PRIVATE assimp glfw ${Vulkan_LIBRARIES} comctl32)
 
 # Precompiled header setup (uses Gateware include)
 set(PRE_COMPILED

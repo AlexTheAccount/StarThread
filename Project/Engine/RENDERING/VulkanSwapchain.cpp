@@ -215,12 +215,14 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
 
         vkDeviceWaitIdle(rendererComponent.device);
 
+        // Destroy old resources
         for (VkFramebuffer framebuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, framebuffer, nullptr);
         rendererComponent.swapchainFramebuffers.clear();
 
-        if (!rendererComponent.commandBuffers.empty())
+        if (!rendererComponent.commandBuffers.empty() && rendererComponent.commandPool != VK_NULL_HANDLE)
         {
-            vkFreeCommandBuffers(rendererComponent.device, rendererComponent.commandPool, static_cast<uint32_t>(rendererComponent.commandBuffers.size()), rendererComponent.commandBuffers.data());
+            vkFreeCommandBuffers(rendererComponent.device, rendererComponent.commandPool,
+                                 static_cast<uint32_t>(rendererComponent.commandBuffers.size()), rendererComponent.commandBuffers.data());
             rendererComponent.commandBuffers.clear();
         }
 
@@ -234,12 +236,64 @@ namespace RENDERING::RENDERER_HELPERS::Swapchain
         if (rendererComponent.swapchain) { vkDestroySwapchainKHR(rendererComponent.device, rendererComponent.swapchain, nullptr); rendererComponent.swapchain = VK_NULL_HANDLE; }
         rendererComponent.swapchainImages.clear();
 
-        if (!CreateSwapchainFor(rendererComponent) ||
-            !CreateImageViewsFor(rendererComponent))
+        // Also destroy depth resources if present
+        if (rendererComponent.depthImageView) { vkDestroyImageView(rendererComponent.device, rendererComponent.depthImageView, nullptr); rendererComponent.depthImageView = VK_NULL_HANDLE; }
+        if (rendererComponent.depthImage) { vkDestroyImage(rendererComponent.device, rendererComponent.depthImage, nullptr); rendererComponent.depthImage = VK_NULL_HANDLE; }
+        if (rendererComponent.depthImageMemory) { vkFreeMemory(rendererComponent.device, rendererComponent.depthImageMemory, nullptr); rendererComponent.depthImageMemory = VK_NULL_HANDLE; }
+
+        // Recreate swapchain and image views
+        if (!CreateSwapchainFor(rendererComponent) || !CreateImageViewsFor(rendererComponent))
         {
             printf("Failed to recreate basic swapchain resources\n");
             return;
         }
 
+        // Recreate depth, render pass, pipeline, framebuffers, command pool, command buffers and sync objects
+        if (!RENDERING::RENDERER_HELPERS::Depth::CreateDepthResourcesFor(rendererComponent))
+        {
+            printf("Failed to recreate depth resources\n");
+            return;
+        }
+
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateRenderPassFor(rendererComponent))
+        {
+            printf("Failed to recreate render pass\n");
+            return;
+        }
+
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateGraphicsPipelineFor(rendererComponent))
+        {
+            printf("Failed to recreate graphics pipeline\n");
+            return;
+        }
+
+        if (!CreateFramebuffersFor(rendererComponent))
+        {
+            printf("Failed to recreate framebuffers\n");
+            return;
+        }
+
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateCommandPoolFor(rendererComponent))
+        {
+            printf("Failed to recreate command pool\n");
+            return;
+        }
+
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateCommandBuffersFor(rendererComponent))
+        {
+            printf("Failed to recreate command buffers\n");
+            return;
+        }
+
+        if (!RENDERING::RENDERER_HELPERS::Pipeline::CreateSyncObjectsFor(rendererComponent))
+        {
+            printf("Failed to recreate sync objects\n");
+            return;
+        }
+
+        // Make imagesInFlight size match new swapchain image count
+        rendererComponent.imagesInFlight.assign(rendererComponent.swapchainImages.size(), VK_NULL_HANDLE);
+
+        rendererComponent.framebufferResized = false;
     }
 } // namespace RENDERER_HELPERS::Swapchain

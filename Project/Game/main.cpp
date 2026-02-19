@@ -1,4 +1,5 @@
 #include "../Engine/RENDERING/RenderingComponents.h"
+#include "../Engine/IMGUI/ImguiComponents.h"
 #include "GAME/GameComponents.h"
 #include <iostream>
 #include <chrono>
@@ -40,11 +41,6 @@ int main()
     float farPlane = 100.0f;
     entt::entity camera = CreateCamera(registry, fovRadians, aspectRatio, nearPlane, farPlane);
 
-    // Create player entity and attach the TestShip model
-    entt::entity player = registry.create();
-    registry.emplace<Player>(player);
-    AttachModelToEntity(registry, player, "TestShip");
-
     // Upload model data to GPU
     vkDeviceWaitIdle(rendererComponent.device);
     if (!Pipeline::CreateCommandBuffersFor(rendererComponent)) 
@@ -52,11 +48,33 @@ int main()
         printf("Failed to create command buffers after model upload\n");
     }
 
+    // Define ImGui layer bits
+    const uint8_t MAIN_MENU = 1 << 0;
+    const uint8_t CREDITS   = 1 << 1;
+
+    // Create and store global UI state
+    auto& uiState = registry.ctx().emplace<UI::UIState>();
+    uiState.visible = true;
+    uiState.visibleLayers = UI::UILayer(MAIN_MENU);
+    uiState.backgroundVisible = true;
+    uiState.acceptsInput = true;
+
+    // Build UI
+    UI::BuildMainMenu(registry, MAIN_MENU, CREDITS);
+    UI::BuildCreditsMenu(registry, CREDITS, MAIN_MENU);
+
+    // Initialize ImGui layer 
+    UI::InitializeImgui(registry);
+
     // game loop
     while (!glfwWindowShouldClose(rendererComponent.window))
     {
         CAMERA_SYSTEM::UpdateCameraAndUpload(registry, camera);
 
+        // update credits scrolling 
+        UI::UpdateCredits(registry);
+
+        UI::RenderUI(registry, entity);
         Render();
         glfwPollEvents();
     }
