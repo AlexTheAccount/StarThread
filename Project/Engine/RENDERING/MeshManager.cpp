@@ -68,4 +68,35 @@ namespace RENDERING
         resources[id].indices.clear();
         resources[id].indices.shrink_to_fit();
     }
+
+    void MeshManager::ReleaseAllGpuResources(RendererComponent& renderer)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (renderer.device == VK_NULL_HANDLE) return;
+
+        for (auto &res : resources)
+        {
+            if (res.vertexBuffer != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(renderer.device, res.vertexBuffer, nullptr);
+                res.vertexBuffer = VK_NULL_HANDLE;
+            }
+            if (res.vertexBufferMemory != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(renderer.device, res.vertexBufferMemory, nullptr);
+                res.vertexBufferMemory = VK_NULL_HANDLE;
+            }
+            if (res.indexBuffer != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(renderer.device, res.indexBuffer, nullptr);
+                res.indexBuffer = VK_NULL_HANDLE;
+            }
+            if (res.indexBufferMemory != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(renderer.device, res.indexBufferMemory, nullptr);
+                res.indexBufferMemory = VK_NULL_HANDLE;
+            }
+            res.indexCount = 0;
+        }
+    }
 }

@@ -3,75 +3,92 @@
 #include <backends/imgui_impl_vulkan.h>
 #include "../IMGUI/ImguiComponents.h"
 #include <stdio.h>
+#include <filesystem>
+
+using namespace UTILITIES;
 
 namespace UI
 {
+    // Simple background gradient / subtle starfield drawn each frame.
+    static void DrawSpaceBackground()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        ImDrawList* background = ImGui::GetBackgroundDrawList();
+        ImVec2 topLeft = ImVec2(0,0);
+        ImVec2 bottomRight = ImVec2(io.DisplaySize.x, io.DisplaySize.y);
+
+        // two-color vertical gradient (deep blue -> near black)
+        background->AddRectFilledMultiColor(topLeft, bottomRight,
+            IM_COL32(8,18,40,255), IM_COL32(8,18,40,255),
+            IM_COL32(2,6,12,255), IM_COL32(2,6,12,255));
+
+        // small star dots for depth
+        for (int star = 0; star < 60; ++star)
+        {
+            float x = (float)(rand() % (int)io.DisplaySize.x);
+            float y = (float)(rand() % (int)io.DisplaySize.y);
+            uint8_t brightness = (rand() % 80) + 120;
+            background->AddCircleFilled(ImVec2(x,y), 0.6f, IM_COL32(brightness, brightness, 255, 120));
+        }
+    }
+
     static void ApplyStyle()
     {
         ImVec4* colors = ImGui::GetStyle().Colors;
-        colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-        colors[ImGuiCol_WindowBg] = ImVec4(0.29f, 0.34f, 0.26f, 1.00f);
-        colors[ImGuiCol_ChildBg] = ImVec4(0.29f, 0.34f, 0.26f, 1.00f);
-        colors[ImGuiCol_PopupBg] = ImVec4(0.24f, 0.27f, 0.20f, 1.00f);
-        colors[ImGuiCol_Border] = ImVec4(0.54f, 0.57f, 0.51f, 0.50f);
-        colors[ImGuiCol_BorderShadow] = ImVec4(0.14f, 0.16f, 0.11f, 0.52f);
-        colors[ImGuiCol_FrameBg] = ImVec4(0.24f, 0.27f, 0.20f, 1.00f);
-        colors[ImGuiCol_FrameBgHovered] = ImVec4(0.27f, 0.30f, 0.23f, 1.00f);
-        colors[ImGuiCol_FrameBgActive] = ImVec4(0.30f, 0.34f, 0.26f, 1.00f);
-        colors[ImGuiCol_TitleBg] = ImVec4(0.24f, 0.27f, 0.20f, 1.00f);
-        colors[ImGuiCol_TitleBgActive] = ImVec4(0.29f, 0.34f, 0.26f, 1.00f);
-        colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
-        colors[ImGuiCol_MenuBarBg] = ImVec4(0.24f, 0.27f, 0.20f, 1.00f);
-        colors[ImGuiCol_ScrollbarBg] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.28f, 0.32f, 0.24f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.25f, 0.30f, 0.22f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.23f, 0.27f, 0.21f, 1.00f);
-        colors[ImGuiCol_CheckMark] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_SliderGrab] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_SliderGrabActive] = ImVec4(0.54f, 0.57f, 0.51f, 0.50f);
-        colors[ImGuiCol_Button] = ImVec4(0.29f, 0.34f, 0.26f, 0.40f);
-        colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_ButtonActive] = ImVec4(0.54f, 0.57f, 0.51f, 0.50f);
-        colors[ImGuiCol_Header] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_HeaderHovered] = ImVec4(0.35f, 0.42f, 0.31f, 0.6f);
-        colors[ImGuiCol_HeaderActive] = ImVec4(0.54f, 0.57f, 0.51f, 0.50f);
-        colors[ImGuiCol_Separator] = ImVec4(0.14f, 0.16f, 0.11f, 1.00f);
-        colors[ImGuiCol_SeparatorHovered] = ImVec4(0.54f, 0.57f, 0.51f, 1.00f);
-        colors[ImGuiCol_SeparatorActive] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_ResizeGrip] = ImVec4(0.19f, 0.23f, 0.18f, 0.00f); // grip invis
-        colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.54f, 0.57f, 0.51f, 1.00f);
-        colors[ImGuiCol_ResizeGripActive] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_TabHovered] = ImVec4(0.54f, 0.57f, 0.51f, 0.78f);
-        colors[ImGuiCol_TabActive] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_TabUnfocused] = ImVec4(0.24f, 0.27f, 0.20f, 1.00f);
-        colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.35f, 0.42f, 0.31f, 1.00f);
-        colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-        colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_PlotHistogram] = ImVec4(1.00f, 0.78f, 0.28f, 1.00f);
-        colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-        colors[ImGuiCol_TextSelectedBg] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_DragDropTarget] = ImVec4(0.73f, 0.67f, 0.24f, 1.00f);
-        colors[ImGuiCol_NavHighlight] = ImVec4(0.59f, 0.54f, 0.18f, 1.00f);
-        colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-        colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-        colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+        // Base
+        colors[ImGuiCol_Text] = ImVec4(0.92f, 0.97f, 1.00f, 1.00f);
+        colors[ImGuiCol_WindowBg] = ImVec4(0.03f, 0.05f, 0.09f, 1.00f); // deep space
+        colors[ImGuiCol_ChildBg] = ImVec4(0.03f, 0.05f, 0.07f, 0.95f);
+        colors[ImGuiCol_PopupBg] = ImVec4(0.04f, 0.06f, 0.10f, 0.95f);
 
+        // Accents (neon cyan / magenta)
+        ImVec4 neonCyan = ImVec4(0.06f, 0.78f, 0.95f, 1.00f);
+        ImVec4 neonMag  = ImVec4(0.84f, 0.20f, 0.95f, 1.00f);
+        ImVec4 dimAccent = ImVec4(0.10f, 0.22f, 0.28f, 1.00f);
+
+        colors[ImGuiCol_FrameBg] = ImVec4(0.05f, 0.08f, 0.12f, 0.85f);
+        colors[ImGuiCol_FrameBgHovered] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.12f);
+        colors[ImGuiCol_FrameBgActive] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.18f);
+
+        colors[ImGuiCol_Button] = ImVec4(dimAccent.x, dimAccent.y, dimAccent.z, 0.35f);
+        colors[ImGuiCol_ButtonHovered] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.18f);
+        colors[ImGuiCol_ButtonActive] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.28f);
+
+        colors[ImGuiCol_Header] = ImVec4(0.06f, 0.07f, 0.09f, 0.9f);
+        colors[ImGuiCol_HeaderHovered] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.12f);
+        colors[ImGuiCol_HeaderActive] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.22f);
+
+        colors[ImGuiCol_Border] = ImVec4(0.12f, 0.16f, 0.22f, 0.8f);
+        colors[ImGuiCol_ResizeGrip] = ImVec4(0,0,0,0); // keep invisible
+        colors[ImGuiCol_Tab] = ImVec4(0.05f, 0.07f, 0.09f, 0.9f);
+        colors[ImGuiCol_TabHovered] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.2f);
+        colors[ImGuiCol_TabActive] = ImVec4(neonMag.x, neonMag.y, neonMag.z, 0.95f);
+
+        // Plots and highlights
+        colors[ImGuiCol_PlotLines] = ImVec4(0.6f, 0.8f, 0.95f, 0.9f);
+        colors[ImGuiCol_PlotHistogram] = ImVec4(0.95f, 0.6f, 0.15f, 1.0f);
+        colors[ImGuiCol_TextSelectedBg] = ImVec4(neonCyan.x, neonCyan.y, neonCyan.z, 0.18f);
+
+        // Style variables for a tech look
         ImGuiStyle& style = ImGui::GetStyle();
-        style.FrameBorderSize = 1.0f;
-        style.WindowRounding = 0.0f;
-        style.ChildRounding = 0.0f;
-        style.FrameRounding = 0.0f;
-        style.PopupRounding = 0.0f;
-        style.ScrollbarRounding = 0.0f;
-        style.GrabRounding = 0.0f;
-        style.TabRounding = 0.0f;
+        style.FrameBorderSize = 1.0f;      // thin frame border for "HUD card" feel
+        style.WindowRounding = 4.0f;       // small rounding
+        style.ChildRounding = 3.0f;
+        style.FrameRounding = 3.0f;
+        style.PopupRounding = 3.0f;
+        style.ScrollbarRounding = 2.0f;
+        style.GrabRounding = 2.0f;
+        style.TabRounding = 3.0f;
 
-        ImGui::GetIO().FontGlobalScale = 2.f;
+        style.FramePadding = ImVec2(8, 6);
+        style.ItemSpacing = ImVec2(8, 6);
+
+        // Font scale — tweak after you load a custom font
+        ImGui::GetIO().FontGlobalScale = 1.0f;
     }
 
-    void ImguiLayer::Initialize(VkInstance instance,
+    void ImguiLayer::Initialize(entt::registry& registry,
+        VkInstance instance,
         VkPhysicalDevice physicalDevice,
         VkDevice device,
         uint32_t graphicsQueueFamily,
@@ -81,6 +98,7 @@ namespace UI
         uint32_t minImageCount,
         GLFWwindow* window)
     {
+        std::shared_ptr<const GameConfig> config = registry.ctx().get<Config>().gameConfig;
         // Basic validation
         if (device == VK_NULL_HANDLE) 
         {
@@ -98,22 +116,67 @@ namespace UI
             return;
         }
 
-        // Log device and dispatch pointer
-        void* deviceDispatch = nullptr;
-        if (device) deviceDispatch = *(void**)device;
-        printf("ImguiLayer::Initialize: device=%p dispatch=%p descriptorPool=%p renderPass=%p\n",
-            (void*)device, deviceDispatch, (void*)descriptorPool, (void*)renderPass);
-
         // Setup Dear ImGui context
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
         ImGui::StyleColorsDark();
 
+        // Load a custom font for a sci‑fi feel
+        try
+        {
+            if (config)
+            {
+                std::string fontPath = config->at("Fonts").at("fontPath").as<std::string>();
+                float fontSize = config->at("Fonts").at("fontSize").as<float>();
+
+                // Resolve relative paths
+                std::filesystem::path filePath(fontPath);
+                if (filePath.is_relative())
+                {
+                    char exePath[MAX_PATH] = {};
+                    GetModuleFileNameA(NULL, exePath, MAX_PATH);
+                    std::filesystem::path exeDir = std::filesystem::path(exePath).parent_path();
+                    std::filesystem::path configDir = exeDir.parent_path().parent_path() / "Config";
+                    std::filesystem::path resolved = (configDir / filePath).lexically_normal();
+                    fontPath = resolved.string();
+                }
+
+                // Log of Helpfulness
+                printf("While loading '%s'\n", fontPath.c_str());
+
+                // Check file exists before handing to ImGui 
+                if (!std::filesystem::exists(fontPath))
+                {
+                    printf("ImguiLayer::Initialize: Font file not found: %s\n", fontPath.c_str());
+                }
+                else
+                {
+                    ImFont* sciFiFont = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize);
+                    if (sciFiFont)
+                    {
+                        io.FontDefault = sciFiFont;
+                        ImGui::GetIO().FontGlobalScale = 1.0f;
+                    }
+                    else
+                    {
+                        printf("ImguiLayer::Initialize: ImGui failed to load font file: %s\n", fontPath.c_str());
+                    }
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            printf("ImguiLayer::Initialize: failed to read font from config: %s\n", e.what());
+        }
+
         // Apply style
         ApplyStyle();
 
-        // Setup Platform/Renderer backends
+        // Initialize GLFW platform backend for Vulkan
+        ImGui_ImplGlfw_InitForVulkan(window, true);
+
+        // Setup Vulkan backend init info
         ImGui_ImplVulkan_InitInfo initInfo = {};
         initInfo.Instance = instance;
         initInfo.PhysicalDevice = physicalDevice;
@@ -125,14 +188,18 @@ namespace UI
         initInfo.MinImageCount = minImageCount;
         initInfo.ImageCount = minImageCount;
         initInfo.Allocator = nullptr;
-        initInfo.CheckVkResultFn = nullptr;
+        initInfo.CheckVkResultFn = [](VkResult err) 
+        {
+            if (err != VK_SUCCESS) 
+            {
+                printf("ImGui Vulkan backend VkResult: %d\n", err);
+            }
+        };
         initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
         initInfo.PipelineInfoMain.RenderPass = renderPass;
 
+        // Initialize Vulkan backend
         ImGui_ImplVulkan_Init(&initInfo);
-
-        // Initialize GLFW platform backend for Vulkan
-        ImGui_ImplGlfw_InitForVulkan(window, true);
 
         // store the window and Vulkan objects
         this->window = window;
@@ -160,6 +227,10 @@ namespace UI
         ImGui_ImplGlfw_NewFrame();
         ImGui_ImplVulkan_NewFrame();
         ImGui::NewFrame();
+
+        // Draw the space background
+        DrawSpaceBackground();
+
         return true;
     }
 
@@ -171,9 +242,10 @@ namespace UI
             return;
         }
 
+        ImGui::EndFrame();
         ImGui::Render();
-        ImDrawData* draw_data = ImGui::GetDrawData();
-        if (!draw_data) 
+        ImDrawData* drawData = ImGui::GetDrawData();
+        if (!drawData)
         {
             printf("ImguiLayer::EndFrame: draw_data == nullptr\n");
             return;
@@ -185,7 +257,7 @@ namespace UI
             return;
         }
 
-        ImGui_ImplVulkan_RenderDrawData(draw_data, commandBuffer);
+        ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffer);
     }
 
     void ImguiLayer::Shutdown()

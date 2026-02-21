@@ -53,7 +53,7 @@ namespace UI
     struct UIState : UIVisibility
     {
         bool backgroundVisible = true;
-        bool acceptsInput = true;
+        bool uiAcceptsInput = true;
 
         // Track previous controller axis/button values to perform edge detection
         float previousDpadLeft = 0.0f;
@@ -70,7 +70,7 @@ namespace UI
         float speed = 0.12f;
         int lines = 0;
         bool active = false;
-        bool acceptsInput = true;
+        bool uiAcceptsInput = true;
     };
 
     enum class PositionMode
@@ -191,7 +191,8 @@ namespace UI
     class ImguiLayer
     {
     public:
-        void Initialize(VkInstance instance,
+        void Initialize(entt::registry& registry,
+            VkInstance instance,
             VkPhysicalDevice physicalDevice,
             VkDevice device,
             uint32_t graphicsQueueFamily,

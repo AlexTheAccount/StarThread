@@ -86,6 +86,7 @@ void UI::InitializeImgui(entt::registry & registry)
         // finish
         imguiLayer.Initialize
         (
+            registry,
             instance,
             vulkanRenderer.physicalDevice,
             vulkanRenderer.device,

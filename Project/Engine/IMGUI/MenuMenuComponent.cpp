@@ -1,5 +1,6 @@
 #include "../IMGUI/ImguiComponents.h"
 #include "../RENDERING/RenderingComponents.h"
+#include "../../Game/GAME/GameComponents.h"
 
 namespace UI
 {
@@ -20,10 +21,8 @@ namespace UI
                 .label = "Start",
                 .onClick = [](UI::Button& button, entt::registry& registry, entt::entity)
                 {
-                    // Hide menu and allow game input
-                    auto& state = registry.ctx().get<UI::UIState>();
-                    state.visible = false;
-                    state.acceptsInput = false;
+                    // Transition to Playing
+                    GAME::SetGameState(registry, GAME::GameState::Playing);
                 }
             }
         );

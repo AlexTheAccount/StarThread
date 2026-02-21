@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cstring>
 #include <entt/entt.hpp>
+#include "../IMGUI/ImguiComponents.h"
 #include "../ENGINE/EngineComponents.h"
 
 namespace RENDERING::RENDERER_HELPERS
@@ -106,6 +107,7 @@ namespace RENDERING::RENDERER_HELPERS
                 printf("Failed to acquire swap chain image\n");
                 return;
             }
+            rendererComponent.lastImageIndex = imageIndex;
 
             if (rendererComponent.imagesInFlight.size() > imageIndex && rendererComponent.imagesInFlight[imageIndex] != VK_NULL_HANDLE)
             {
@@ -124,7 +126,11 @@ namespace RENDERING::RENDERER_HELPERS
         {
             VkCommandBuffer command = rendererComponent.commandBuffers[imageIndex];
 
+            // Reset the command buffer to the initial state before re-recording
+            vkResetCommandBuffer(command, 0);
+
             VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
             VkResult beginResult = vkBeginCommandBuffer(command, &beginInfo);
             if (beginResult != VK_SUCCESS)
             {
@@ -180,6 +186,15 @@ namespace RENDERING::RENDERER_HELPERS
                 vkCmdPushConstants(command, rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GW::MATH::GMATRIXF), &transform.world);
 
                 vkCmdDrawIndexed(command, static_cast<uint32_t>(mesh->indexCount), 1, 0, 0, 0);
+            }
+
+            // Render ImGui into command buffer while it is recording and inside the render pass
+            {
+                auto imguiPtr = registry.ctx().find<UI::ImguiLayer>();
+                if (imguiPtr && imguiPtr->IsInitialized())
+                {
+                    imguiPtr->EndFrame(command);
+                }
             }
 
             vkCmdEndRenderPass(command);
@@ -292,6 +307,23 @@ namespace RENDERING::RENDERER_HELPERS
     // Per-instance cleanup
     void CleanupFor(RendererComponent& rendererComponent)
     {
+        // Ensure all GPU work is finished before destroying objects
+        if (rendererComponent.device != VK_NULL_HANDLE)
+        {
+            // Wait for all queues on the device to be idle
+            vkDeviceWaitIdle(rendererComponent.device);
+        }
+
+        // Ensure MeshManager releases any GPU buffers that were created using this device
+        MeshManager::Instance().ReleaseAllGpuResources(rendererComponent);
+
+        // Destroy texture sampler before device destruction
+        if (rendererComponent.textureSampler)
+        {
+            vkDestroySampler(rendererComponent.device, rendererComponent.textureSampler, nullptr);
+            rendererComponent.textureSampler = VK_NULL_HANDLE;
+        }
+
         // Destroy all image-available semaphores
         for (VkSemaphore semaphore : rendererComponent.imageAvailableSemaphores)
         {
@@ -313,15 +345,22 @@ namespace RENDERING::RENDERER_HELPERS
         }
         rendererComponent.inFlightFences.clear();
 
+        // Destroy command pool
         if (rendererComponent.commandPool) vkDestroyCommandPool(rendererComponent.device, rendererComponent.commandPool, nullptr);
+        rendererComponent.commandPool = VK_NULL_HANDLE;
+        rendererComponent.commandBuffers.clear();
 
         for (VkFramebuffer frameBuffer : rendererComponent.swapchainFramebuffers) vkDestroyFramebuffer(rendererComponent.device, frameBuffer, nullptr);
-        if (rendererComponent.graphicsPipeline) vkDestroyPipeline(rendererComponent.device, rendererComponent.graphicsPipeline, nullptr);
-        if (rendererComponent.pipelineLayout) vkDestroyPipelineLayout(rendererComponent.device, rendererComponent.pipelineLayout, nullptr);
-        if (rendererComponent.renderPass) vkDestroyRenderPass(rendererComponent.device, rendererComponent.renderPass, nullptr);
+        rendererComponent.swapchainFramebuffers.clear();
+
+        if (rendererComponent.graphicsPipeline) { vkDestroyPipeline(rendererComponent.device, rendererComponent.graphicsPipeline, nullptr); rendererComponent.graphicsPipeline = VK_NULL_HANDLE; }
+        if (rendererComponent.pipelineLayout) { vkDestroyPipelineLayout(rendererComponent.device, rendererComponent.pipelineLayout, nullptr); rendererComponent.pipelineLayout = VK_NULL_HANDLE; }
+        if (rendererComponent.renderPass) { vkDestroyRenderPass(rendererComponent.device, rendererComponent.renderPass, nullptr); rendererComponent.renderPass = VK_NULL_HANDLE; }
 
         for (VkImageView view : rendererComponent.swapchainImageViews) vkDestroyImageView(rendererComponent.device, view, nullptr);
-        if (rendererComponent.swapchain) vkDestroySwapchainKHR(rendererComponent.device, rendererComponent.swapchain, nullptr);
+        rendererComponent.swapchainImageViews.clear();
+
+        if (rendererComponent.swapchain) { vkDestroySwapchainKHR(rendererComponent.device, rendererComponent.swapchain, nullptr); rendererComponent.swapchain = VK_NULL_HANDLE; }
 
         if (rendererComponent.descriptorPool) { vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr); rendererComponent.descriptorPool = VK_NULL_HANDLE; }
 
@@ -358,15 +397,11 @@ namespace RENDERING::RENDERER_HELPERS
             rendererComponent.uniformBufferMemory = VK_NULL_HANDLE;
         }
 
-        if (rendererComponent.device) vkDestroyDevice(rendererComponent.device, nullptr);
-        if (rendererComponent.surface) vkDestroySurfaceKHR(rendererComponent.instance, rendererComponent.surface, nullptr);
-        if (rendererComponent.instance) vkDestroyInstance(rendererComponent.instance, nullptr);
+        // Destroy device after all device-local child objects have been destroyed/freed.
+        if (rendererComponent.device) { vkDestroyDevice(rendererComponent.device, nullptr); rendererComponent.device = VK_NULL_HANDLE; }
 
-        if (rendererComponent.textureSampler)
-        {
-            vkDestroySampler(rendererComponent.device, rendererComponent.textureSampler, nullptr);
-            rendererComponent.textureSampler = VK_NULL_HANDLE;
-        }
+        if (rendererComponent.surface) { vkDestroySurfaceKHR(rendererComponent.instance, rendererComponent.surface, nullptr); rendererComponent.surface = VK_NULL_HANDLE; }
+        if (rendererComponent.instance) { vkDestroyInstance(rendererComponent.instance, nullptr); rendererComponent.instance = VK_NULL_HANDLE; }
 
         if (rendererComponent.window)
         {

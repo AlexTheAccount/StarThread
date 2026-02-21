@@ -22,6 +22,8 @@ int main()
     Registry::entity_type entity = registry.create();
 
     registry.ctx().emplace<UTILITIES::Config>();
+    registry.ctx().emplace<UTILITIES::Input>();
+
     registry.emplace<RendererComponent>(entity);
     RendererComponent& rendererComponent = registry.get<RendererComponent>(entity);
 
@@ -57,7 +59,7 @@ int main()
     uiState.visible = true;
     uiState.visibleLayers = UI::UILayer(MAIN_MENU);
     uiState.backgroundVisible = true;
-    uiState.acceptsInput = true;
+    uiState.uiAcceptsInput = true;
 
     // Build UI
     UI::BuildMainMenu(registry, MAIN_MENU, CREDITS);
@@ -69,14 +71,48 @@ int main()
     // game loop
     while (!glfwWindowShouldClose(rendererComponent.window))
     {
-        CAMERA_SYSTEM::UpdateCameraAndUpload(registry, camera);
+        auto state = GAME::GetGameState(registry);
 
-        // update credits scrolling 
+        // Always update camera/UI input handlers if needed; but run gameplay only when Playing
+        if (state == GAME::GameState::Playing)
+        {
+            CAMERA_SYSTEM::UpdateCameraAndUpload(registry, camera);
+            
+            // run gameplay systems
+            GAME::UpdateGameManager(registry);
+        }
+        else
+        {
+
+        }
+
+        // update credits and render UI regardless
         UI::UpdateCredits(registry);
-
         UI::RenderUI(registry, entity);
+
+        // render frame
         Render();
         glfwPollEvents();
+
+        // toggle pause
+        if (state == GAME::GameState::Playing)
+        {
+            float keyState = 0.0f;
+            auto& input = registry.ctx().get<UTILITIES::Input>();
+            if (+input.immediateInput.GetState(G_KEY_ESCAPE, keyState) && keyState != 0.0f)
+            {
+                GAME::SetGameState(registry, GAME::GameState::Paused);
+            }
+        }
+        else if (state == GAME::GameState::Paused)
+        {
+            float keyState = 0.0f;
+            auto& input = registry.ctx().get<UTILITIES::Input>();
+            if (+input.immediateInput.GetState(G_KEY_ESCAPE, keyState) && keyState != 0.0f)
+            {
+                GAME::SetGameState(registry, GAME::GameState::Playing);
+            }
+        }
     }
 
     // Cleanup renderer resources

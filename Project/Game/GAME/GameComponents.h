@@ -13,11 +13,27 @@ namespace GAME
     struct Bullet {};
     struct Obstacle {};
     struct ToDestroy {};
+    struct StartGame {};
     struct GameOver {};
 
 
     //*** COMPONENTS ***//
     struct GameManager {};
+
+    enum class GameState
+    {
+        MainMenu,
+        Playing,
+        Paused,
+        GameOver
+    };
+
+    struct GameStateContext
+    {
+        GameState state = GameState::MainMenu;
+        entt::entity player = entt::null;
+        bool gameAcceptsInput = false;
+    };
 
     struct FiringState
     {
@@ -63,6 +79,10 @@ namespace GAME
 
     // *** FUNCTIONS *** //
     void AttachModelToEntity(entt::registry& registry, entt::entity entity, const std::string& modelName);
+    void UpdateGameManager(entt::registry& registry);
+    void StartGame(entt::registry& registry);
+    void SetGameState(entt::registry& registry, GameState newState);
+    GameState GetGameState(entt::registry& registry);
 
     // *** GLOBALS *** //
     inline entt::registry& GlobalRegistry()

@@ -7,17 +7,18 @@ using namespace GAME;
 
 void UpdatePlayerComponent(entt::registry& registry, entt::entity entity);
 
-void UpdateGameManager(entt::registry& registry)
+namespace GAME
 {
-    // if GameOver tag exists, skip update
-    if (registry.ctx().contains<GAME::GameOver>())
-        return;
+    void UpdateGameManager(entt::registry& registry)
+    {
+        // if GameOver tag exists, skip update
+        if (registry.ctx().contains<GAME::GameOver>())
+            return;
 
-    // get config 
-    std::shared_ptr<const GameConfig> config = registry.ctx().get<Config>().gameConfig;
+        // get config 
+        std::shared_ptr<const GameConfig> config = registry.ctx().get<Config>().gameConfig;
 
-    // Get Delta Time
-    double& deltaTime = registry.ctx().get<DeltaTime>().dtSec;
-
-
+        // Get Delta Time
+        double& deltaTime = registry.ctx().get<DeltaTime>().dtSec;
+    }
 }

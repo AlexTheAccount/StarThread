@@ -1,5 +1,9 @@
 #pragma once
 #include <entt/entt.hpp>
+#include <string>
+#include <unordered_map>
+#include <memory>
+#include "../../gateware-26.33.16/Gateware.h"
 
 namespace ENGINE
 {
@@ -8,7 +12,14 @@ namespace ENGINE
         static entt::registry registry;
         return registry;
     }
-    
+
+    struct AudioSettings
+    {
+        float mainVolume = 1.0f;
+        float musicVolume = 1.0f;
+        float sfxVolume = 1.0f;
+    };
+
     struct SoundBank
     {
         GW::AUDIO::GAudio* audio;

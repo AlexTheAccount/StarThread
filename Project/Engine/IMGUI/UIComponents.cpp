@@ -264,8 +264,8 @@ namespace UI
         UIState& globalState = registry.ctx().get<UIState>();
 
         ImGuiIO& io = ImGui::GetIO();
-        io.WantCaptureKeyboard = globalState.acceptsInput;
-        io.ConfigFlags = globalState.acceptsInput ?
+        io.WantCaptureKeyboard = globalState.uiAcceptsInput;
+        io.ConfigFlags = globalState.uiAcceptsInput ?
             io.ConfigFlags | ImGuiConfigFlags_NavEnableGamepad :
             io.ConfigFlags & ~ImGuiConfigFlags_NavEnableKeyboard;
 

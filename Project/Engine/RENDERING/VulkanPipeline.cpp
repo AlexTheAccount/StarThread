@@ -453,7 +453,7 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
     bool CreateCommandBuffersFor(RendererComponent& rendererComponent)
     {
-        // if command buffers aren't full, empty them for rerecording
+        // if command buffers aren't full, empty them for re-allocation
         if (!rendererComponent.commandBuffers.empty() && rendererComponent.commandPool != VK_NULL_HANDLE)
         {
             vkFreeCommandBuffers(rendererComponent.device,
@@ -476,74 +476,6 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             printf("Failed to allocate command buffers\n");
             return false;
         }
-
-        for (size_t buffer = 0; buffer < rendererComponent.commandBuffers.size(); ++buffer)
-        {
-            VkCommandBufferBeginInfo beginInfo{};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-            VkResult result = vkBeginCommandBuffer(rendererComponent.commandBuffers[buffer], &beginInfo);
-            if (result != VK_SUCCESS)
-            {
-                printf("vkBeginCommandBuffer failed for buffer %zu: %d\n", buffer, result);
-                return false;
-            }
-
-            VkRenderPassBeginInfo renderPassInfo{};
-            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = rendererComponent.renderPass;
-            renderPassInfo.framebuffer = rendererComponent.swapchainFramebuffers[buffer];
-            renderPassInfo.renderArea.offset = { 0, 0 };
-            renderPassInfo.renderArea.extent = rendererComponent.swapchainExtent;
-
-            std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-            clearValues[1].depthStencil = { 1.0f, 0 }; // depth clear
-            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-            renderPassInfo.pClearValues = clearValues.data();
-
-            vkCmdBeginRenderPass(rendererComponent.commandBuffers[buffer], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(rendererComponent.commandBuffers[buffer], VK_PIPELINE_BIND_POINT_GRAPHICS, rendererComponent.graphicsPipeline);
-            vkCmdBindDescriptorSets(rendererComponent.commandBuffers[buffer],
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                rendererComponent.pipelineLayout,
-                0,
-                1,
-                &rendererComponent.descriptorSet,
-                0, nullptr);
-
-            // Bind vertex buffer and draw
-            if (rendererComponent.vertexBuffer != VK_NULL_HANDLE)
-            {
-                VkBuffer vertexBuffers[] = { rendererComponent.vertexBuffer };
-                VkDeviceSize offsets[] = { 0 };
-                vkCmdBindVertexBuffers(rendererComponent.commandBuffers[buffer], 0, 1, vertexBuffers, offsets);
-
-                if (rendererComponent.indexBuffer != VK_NULL_HANDLE && rendererComponent.indexCount > 0)
-                {
-                    vkCmdBindIndexBuffer(rendererComponent.commandBuffers[buffer], rendererComponent.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-                    vkCmdDrawIndexed(rendererComponent.commandBuffers[buffer], static_cast<uint32_t>(rendererComponent.indexCount), 1, 0, 0, 0);
-                }
-                else
-                {
-                    printf("No index buffer found, drawing vertices without indexing\n");
-                    vkCmdDraw(rendererComponent.commandBuffers[buffer], 3, 1, 0, 0);
-                }
-            }
-            else
-            {
-                printf("No vertex buffer found, skipping draw to avoid validation error\n");
-            }
-
-            vkCmdEndRenderPass(rendererComponent.commandBuffers[buffer]);
-
-            if (vkEndCommandBuffer(rendererComponent.commandBuffers[buffer]) != VK_SUCCESS)
-            {
-                printf("Failed to record command buffer\n");
-                return false;
-            }
-        }
-
         return true;
     }
 

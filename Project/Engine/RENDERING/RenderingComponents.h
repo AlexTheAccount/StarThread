@@ -166,6 +166,7 @@ namespace RENDERING
 
         const int MAX_FRAMES_IN_FLIGHT = 2;
         bool framebufferResized = false;
+        uint32_t lastImageIndex = 0u;
 
         GLFWwindow* GetWindow() const { return window; }
     };
@@ -212,6 +213,7 @@ namespace RENDERING
         size_t MeshCount() const;
 
         void ReleaseCpuMeshData(uint32_t id);
+        void ReleaseAllGpuResources(RendererComponent& renderer);
 
     private:
         MeshManager() = default;
