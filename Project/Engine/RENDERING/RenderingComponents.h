@@ -223,6 +223,7 @@ namespace RENDERING
     };
 
     // *** FUNCTIONS *** //
+    void InitializeGraphics(entt::registry& registry);
     void SetDebugName(VkDevice device, VkObjectType objectType, uint64_t objectHandle, const char* name);
 
     // *** RENDERER HELPERS *** //

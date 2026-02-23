@@ -7,9 +7,33 @@ namespace UI
         float initialY = 0.0f;
     };
 
-    void BuildCreditsMenu(entt::registry& registry, uint8_t CREDITS, uint8_t MAIN_MENU)
+    void BuildCreditsMenu(entt::registry& registry)
     {
-        UI::UIBuilder builder(UI::UILayer(CREDITS), registry);
+        uint8_t MAIN_MENU;
+        uint8_t CREDITS_MENU;
+
+        for (entt::entity entity : registry.view<UI::UILayerBit>())
+        {
+            UI::UILayerBit& layer = registry.get<UI::UILayerBit>(entity);
+
+            if (layer.name == "Main Menu")
+            {
+                MAIN_MENU = layer.bit;
+            }
+
+            if (layer.name == "Credits Menu")
+            {
+                CREDITS_MENU = layer.bit;
+            }
+        }
+
+        if (MAIN_MENU == 0 || CREDITS_MENU == 0)
+        {
+            printf("Error: Main Menu or Credits Menu layer not found in registry context.\n");
+            return;
+        }
+
+        UI::UIBuilder builder(UI::UILayer(CREDITS_MENU), registry);
 
         constexpr std::array<std::string_view, 14> lines
         {
@@ -35,7 +59,7 @@ namespace UI
             guiItem.position = float2(0.0f, startY + static_cast<float>(line) * spacing);
             guiItem.positionMode = UI::PositionMode::Relative;
             guiItem.sizeMode = UI::PositionMode::Relative;
-            guiItem.state = UI::UIVisibility{ true, UI::UILayer(CREDITS) };
+            guiItem.state = UI::UIVisibility{ true, UI::UILayer(CREDITS_MENU) };
 
             registry.emplace<UI::GUIItem>(entity, guiItem);
             registry.emplace<UI::Label>(entity, UI::Label{ (std::string) lines[line], UI::LabelPositioningMode::Center });

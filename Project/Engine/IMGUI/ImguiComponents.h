@@ -10,6 +10,12 @@ using UTILITIES::float2;
 namespace UI
 {
     ///*** Components ***///
+    struct UILayerBit
+    {
+        uint8_t bit;
+        std::string name;
+    };
+
     struct UILayer
     {
         bool layer1 : 1;
@@ -226,8 +232,8 @@ namespace UI
     void InitializeImgui(entt::registry& registry);
     void RenderUI(entt::registry& registry, entt::entity vkEntity);
 
-    void BuildMainMenu(entt::registry& registry, uint8_t MAIN_MENU, uint8_t CREDITS);
-    void BuildCreditsMenu(entt::registry& registry, uint8_t CREDITS, uint8_t MAIN_MENU);
+    void BuildMainMenu(entt::registry& registry);
+    void BuildCreditsMenu(entt::registry& registry);
     void UpdateCredits(entt::registry& registry);
 
 } // namespace IMGUI

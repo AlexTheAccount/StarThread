@@ -5,118 +5,39 @@
 #include <chrono>
 #include <entt/entt.hpp>
 
-using namespace GAME;
-using namespace RENDERING;
 using namespace RENDERING::RENDERER_HELPERS;
 using namespace RENDERING::CAMERA_SYSTEM;
+
 using Registry = entt::registry;
 
 int main()
 {
+    // All components, tags, and systems are stored in a single registry
+    entt::registry registry;
+
     // Seed the rand
     unsigned int time = std::chrono::steady_clock::now().time_since_epoch().count();
     srand(time);
 
-    // store everything related to entities and components in the game registry
-    Registry& registry = GAME::GlobalRegistry();
-    Registry::entity_type entity = registry.create();
-
     registry.ctx().emplace<UTILITIES::Config>();
-    registry.ctx().emplace<UTILITIES::Input>();
 
-    registry.emplace<RendererComponent>(entity);
-    RendererComponent& rendererComponent = registry.get<RendererComponent>(entity);
+    registry.ctx().emplace<RENDERING::ModelManager>();
 
-    // Initialize engine for the renderer instance owned by the game
-    if (!InitializeFor(rendererComponent, 800, 600, "StarThread Vulkan"))
+    // Per-subsystem initializers
+    RENDERING::InitializeGraphics(registry); // create windows, surfaces, and renderers
+    UI::InitializeImgui(registry);   // initialize ImGui layer
+    GAME::InitializeGameplay(registry); // create entities and components for gameplay
+
+    // Main loop runs until all windows close
+    GAME::RunMainLoop(registry); // update windows and input
+
+    for (auto entity : registry.view<RENDERING::RendererComponent>())
     {
-        printf("Failed to initialize renderer\n");
-        return -1;
+        RENDERING::RendererComponent& rendererComponent = registry.get<RENDERING::RendererComponent>(entity);
+        CleanupFor(rendererComponent);
+        registry.remove<RENDERING::RendererComponent>(entity);
     }
 
-    // Create Camera entity
-    float fovDegrees = 60.0f;
-    const float degreesToRadians = 3.14159265358979323846f / 180.0f;
-    float fovRadians = fovDegrees * degreesToRadians;
-    float aspectRatio = 16.0f / 9.0f;
-    float nearPlane = 0.1f;
-    float farPlane = 100.0f;
-    entt::entity camera = CreateCamera(registry, fovRadians, aspectRatio, nearPlane, farPlane);
-
-    // Upload model data to GPU
-    vkDeviceWaitIdle(rendererComponent.device);
-    if (!Pipeline::CreateCommandBuffersFor(rendererComponent)) 
-    {
-        printf("Failed to create command buffers after model upload\n");
-    }
-
-    // Define ImGui layer bits
-    const uint8_t MAIN_MENU = 1 << 0;
-    const uint8_t CREDITS   = 1 << 1;
-
-    // Create and store global UI state
-    auto& uiState = registry.ctx().emplace<UI::UIState>();
-    uiState.visible = true;
-    uiState.visibleLayers = UI::UILayer(MAIN_MENU);
-    uiState.backgroundVisible = true;
-    uiState.uiAcceptsInput = true;
-
-    // Build UI
-    UI::BuildMainMenu(registry, MAIN_MENU, CREDITS);
-    UI::BuildCreditsMenu(registry, CREDITS, MAIN_MENU);
-
-    // Initialize ImGui layer 
-    UI::InitializeImgui(registry);
-
-    // game loop
-    while (!glfwWindowShouldClose(rendererComponent.window))
-    {
-        auto state = GAME::GetGameState(registry);
-
-        // Always update camera/UI input handlers if needed; but run gameplay only when Playing
-        if (state == GAME::GameState::Playing)
-        {
-            CAMERA_SYSTEM::UpdateCameraAndUpload(registry, camera);
-            
-            // run gameplay systems
-            GAME::UpdateGameManager(registry);
-        }
-        else
-        {
-
-        }
-
-        // update credits and render UI regardless
-        UI::UpdateCredits(registry);
-        UI::RenderUI(registry, entity);
-
-        // render frame
-        Render();
-        glfwPollEvents();
-
-        // toggle pause
-        if (state == GAME::GameState::Playing)
-        {
-            float keyState = 0.0f;
-            auto& input = registry.ctx().get<UTILITIES::Input>();
-            if (+input.immediateInput.GetState(G_KEY_ESCAPE, keyState) && keyState != 0.0f)
-            {
-                GAME::SetGameState(registry, GAME::GameState::Paused);
-            }
-        }
-        else if (state == GAME::GameState::Paused)
-        {
-            float keyState = 0.0f;
-            auto& input = registry.ctx().get<UTILITIES::Input>();
-            if (+input.immediateInput.GetState(G_KEY_ESCAPE, keyState) && keyState != 0.0f)
-            {
-                GAME::SetGameState(registry, GAME::GameState::Playing);
-            }
-        }
-    }
-
-    // Cleanup renderer resources
-    CleanupFor(rendererComponent);
     registry.clear();
-    return 0;
+    return 0; // now destructors will be called for all components
 }

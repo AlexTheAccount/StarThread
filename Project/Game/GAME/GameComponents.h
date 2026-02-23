@@ -81,6 +81,8 @@ namespace GAME
     void AttachModelToEntity(entt::registry& registry, entt::entity entity, const std::string& modelName);
     void UpdateGameManager(entt::registry& registry);
     void StartGame(entt::registry& registry);
+    void InitializeGameplay(entt::registry& registry);
+    void RunMainLoop(entt::registry& registry);
     void SetGameState(entt::registry& registry, GameState newState);
     GameState GetGameState(entt::registry& registry);
 

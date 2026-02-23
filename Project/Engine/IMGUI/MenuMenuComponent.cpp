@@ -4,8 +4,32 @@
 
 namespace UI
 {
-    void BuildMainMenu(entt::registry& registry, uint8_t MAIN_MENU, uint8_t CREDITS)
+    void BuildMainMenu(entt::registry& registry)
     {
+        uint8_t MAIN_MENU = 9;
+        uint8_t CREDITS_MENU = 9;
+
+        for (entt::entity entity : registry.view<UI::UILayerBit>())
+        {
+            UI::UILayerBit& layer = registry.get<UI::UILayerBit>(entity);
+
+            if (layer.name == "Main Menu")
+            {
+                MAIN_MENU = layer.bit;
+            }
+
+            if (layer.name == "Credits Menu")
+            {
+                CREDITS_MENU = layer.bit;
+            }
+        }
+
+        if (MAIN_MENU == 9 || CREDITS_MENU == 9)
+        {
+            printf("Error: Main Menu or Credits Menu layer not found in registry context.\n");
+            return;
+        }
+
         UI::UIBuilder builder(UI::UILayer(MAIN_MENU), registry);
 
         // Centered start button
@@ -56,11 +80,11 @@ namespace UI
             },
             {
                 .label = "Credits",
-                .onClick = [CREDITS](UI::Button& button, entt::registry& registry, entt::entity)
+                .onClick = [CREDITS_MENU](UI::Button& button, entt::registry& registry, entt::entity)
                 {
                     // Show credits layer and hide main menu layer
                     auto& state = registry.ctx().get<UI::UIState>();
-                    state.visibleLayers = UI::UILayer(CREDITS);
+                    state.visibleLayers = UI::UILayer(CREDITS_MENU);
                 }
             }
         );

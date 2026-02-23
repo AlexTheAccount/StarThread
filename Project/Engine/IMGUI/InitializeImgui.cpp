@@ -8,6 +8,27 @@
 
 void UI::InitializeImgui(entt::registry & registry)
 {
+    // Define ImGui layer bits
+    {
+        entt::entity mainMenuEntity = registry.create();
+        registry.emplace<UI::UILayerBit>(mainMenuEntity, UI::UILayerBit{ static_cast<uint8_t>(1 << 0), "Main Menu" });
+    }
+    {
+        entt::entity creditsMenuEntity = registry.create();
+        registry.emplace<UI::UILayerBit>(creditsMenuEntity, UI::UILayerBit{ static_cast<uint8_t>(1 << 1), "Credits Menu" });
+    }
+
+    // Create and store global UI state
+    auto& uiState = registry.ctx().emplace<UI::UIState>();
+    uiState.visible = true;
+    uiState.visibleLayers = UI::UILayer(1 << 0);
+    uiState.backgroundVisible = true;
+    uiState.uiAcceptsInput = true;
+
+    // Build UI
+    UI::BuildMainMenu(registry);
+    UI::BuildCreditsMenu(registry);
+
     // initialize ImGuiLayer
     auto view = registry.view<RENDERING::RendererComponent>();
     if (view.begin() != view.end())
