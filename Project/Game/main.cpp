@@ -13,7 +13,7 @@ using Registry = entt::registry;
 int main()
 {
     // All components, tags, and systems are stored in a single registry
-    entt::registry registry;
+    entt::registry& registry = ENGINE::GlobalRegistry();
 
     // Seed the rand
     unsigned int time = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -34,6 +34,13 @@ int main()
     for (auto entity : registry.view<RENDERING::RendererComponent>())
     {
         RENDERING::RendererComponent& rendererComponent = registry.get<RENDERING::RendererComponent>(entity);
+
+        // free Imgui resources before renderer resources, they depend on the renderer's descriptor pool
+        if (auto imguiPtr = registry.ctx().find<UI::ImguiLayer>(); imguiPtr && imguiPtr->IsInitialized())
+        {
+            imguiPtr->Shutdown();
+        }
+
         CleanupFor(rendererComponent);
         registry.remove<RENDERING::RendererComponent>(entity);
     }

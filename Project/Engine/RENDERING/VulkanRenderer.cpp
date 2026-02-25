@@ -190,8 +190,7 @@ namespace RENDERING::RENDERER_HELPERS
 
             // Render ImGui into command buffer while it is recording and inside the render pass
             {
-                auto imguiPtr = registry.ctx().find<UI::ImguiLayer>();
-                if (imguiPtr && imguiPtr->IsInitialized())
+                if (UI::ImguiLayer* imguiPtr = registry.ctx().find<UI::ImguiLayer>(); imguiPtr && imguiPtr->IsInitialized())
                 {
                     imguiPtr->EndFrame(command);
                 }
@@ -386,6 +385,7 @@ namespace RENDERING::RENDERER_HELPERS
             rendererComponent.indexBufferMemory = VK_NULL_HANDLE;
         }
 
+        // Destroy UBO / buffers 
         if (rendererComponent.uniformBuffer != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(rendererComponent.device, rendererComponent.uniformBuffer, nullptr);
@@ -397,7 +397,41 @@ namespace RENDERING::RENDERER_HELPERS
             rendererComponent.uniformBufferMemory = VK_NULL_HANDLE;
         }
 
-        // Destroy device after all device-local child objects have been destroyed/freed.
+        // Destroy texture image, view, and memory 
+        if (rendererComponent.textureImageView != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(rendererComponent.device, rendererComponent.textureImageView, nullptr);
+            rendererComponent.textureImageView = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.textureImage != VK_NULL_HANDLE)
+        {
+            vkDestroyImage(rendererComponent.device, rendererComponent.textureImage, nullptr);
+            rendererComponent.textureImage = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.textureImageMemory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(rendererComponent.device, rendererComponent.textureImageMemory, nullptr);
+            rendererComponent.textureImageMemory = VK_NULL_HANDLE;
+        }
+
+        // Destroy depth image, view, and memory 
+        if (rendererComponent.depthImageView != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(rendererComponent.device, rendererComponent.depthImageView, nullptr);
+            rendererComponent.depthImageView = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.depthImage != VK_NULL_HANDLE)
+        {
+            vkDestroyImage(rendererComponent.device, rendererComponent.depthImage, nullptr);
+            rendererComponent.depthImage = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.depthImageMemory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(rendererComponent.device, rendererComponent.depthImageMemory, nullptr);
+            rendererComponent.depthImageMemory = VK_NULL_HANDLE;
+        }
+
+        // destroy the device.
         if (rendererComponent.device) { vkDestroyDevice(rendererComponent.device, nullptr); rendererComponent.device = VK_NULL_HANDLE; }
 
         if (rendererComponent.surface) { vkDestroySurfaceKHR(rendererComponent.instance, rendererComponent.surface, nullptr); rendererComponent.surface = VK_NULL_HANDLE; }
