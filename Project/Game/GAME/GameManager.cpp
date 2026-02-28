@@ -20,5 +20,232 @@ namespace GAME
 
         // Get Delta Time
         double& deltaTime = registry.ctx().get<DeltaTime>().dtSec;
+
+        // Recalculate world matrices for any transforms that need it
+        {
+            auto transformView = registry.view<RENDERING::Transform>();
+            for (auto entity : transformView)
+            {
+                auto& t = transformView.get<RENDERING::Transform>(entity);
+                if (!t.recomputeWorld) continue;
+
+                // collect chain up to root (or until an ancestor doesn't need recompute)
+                std::vector<entt::entity> stack;
+                entt::entity cur = entity;
+                while (cur != entt::null)
+                {
+                    auto& ct = registry.get<RENDERING::Transform>(cur);
+                    // break if ancestor already up-to-date
+                    if (!ct.recomputeWorld && cur != entity) break;
+                    stack.push_back(cur);
+                    // cycle guard
+                    if (ct.parent == cur) break;
+                    cur = ct.parent;
+                }
+
+                // compute from root -> leaf
+                for (auto it = stack.rbegin(); it != stack.rend(); ++it)
+                {
+                    auto& ct = registry.get<RENDERING::Transform>(*it);
+                    ct.RecalculateWorld();
+
+                    if (ct.parent != entt::null)
+                    {
+                        // multiply parent world into this world (parent * local)
+                        auto& pt = registry.get<RENDERING::Transform>(ct.parent);
+                        GW::MATH::GMatrix::MultiplyMatrixF(pt.world, ct.world, ct.world);
+                    }
+                }
+            }
+        }
+
+        // Collision Detection System for OBBF Colliders
+        auto collisions = registry.view<RENDERING::Transform, RENDERING::MeshCollection>();
+
+        // mark entities with ToDestroy during collision handling,
+        for (auto itA = collisions.begin(); itA != collisions.end(); ++itA)
+        {
+            entt::entity a = *itA;
+
+            // Get collider and transform
+            auto colA = collisions.get<RENDERING::MeshCollection>(a).collider;
+            auto& transA = collisions.get<RENDERING::Transform>(a);
+
+            // Get and Set Scale
+            GVECTORF vecA;
+            GMatrix::GetScaleF(transA.world, vecA);
+            colA.extent.x *= vecA.x;
+            colA.extent.y *= vecA.y;
+            colA.extent.z *= vecA.z;
+
+            // Get and Set Location
+            GMatrix::VectorXMatrixF(transA.world, colA.center, colA.center);
+
+            // Rotation
+            GQUATERNIONF qA;
+            GQuaternion::SetByMatrixF(transA.world, qA);
+            GQuaternion::MultiplyQuaternionF(qA, colA.rotation, colA.rotation);
+
+            // Compare with every following entity to avoid duplicate checks
+            for (auto itB = std::next(itA); itB != collisions.end(); ++itB)
+            {
+                entt::entity b = *itB;
+
+                auto colB = collisions.get<RENDERING::MeshCollection>(b).collider;
+                auto& transB = collisions.get<RENDERING::Transform>(b);
+
+                // Get and Set Scale
+                GVECTORF vecB;
+                GMatrix::GetScaleF(transB.world, vecB);
+                colB.extent.x *= vecB.x;
+                colB.extent.y *= vecB.y;
+                colB.extent.z *= vecB.z;
+
+                // Get and Set Location
+                GMatrix::VectorXMatrixF(transB.world, colB.center, colB.center);
+
+                // Rotation
+                GQUATERNIONF qB;
+                GQuaternion::SetByMatrixF(transB.world, qB);
+                GQuaternion::MultiplyQuaternionF(qB, colB.rotation, colB.rotation);
+
+                // Check Collision
+                GCollision::GCollisionCheck result;
+                GCollision::TestOBBToOBBF(colA, colB, result);
+                if (GCollision::GCollisionCheck::COLLISION == result)
+                {
+                    // Handle Collision Response (same logic as before)
+                    // Bullet to Enemy
+                    if (registry.all_of<Bullet>(a) && registry.all_of<Enemy>(b))
+                    {
+                        auto& enemyHealth = registry.get<Health>(b);
+                        enemyHealth.currentHealth--;
+                        registry.emplace_or_replace<ToDestroy>(a);
+                    }
+                    if (registry.all_of<Bullet>(b) && registry.all_of<Enemy>(a))
+                    {
+                        auto& enemyHealth = registry.get<Health>(a);
+                        enemyHealth.currentHealth--;
+                        registry.emplace_or_replace<ToDestroy>(b);
+                    }
+
+                    // Enemy to Player
+                    if (registry.all_of<Enemy>(a) && registry.all_of<Player>(b))
+                    {
+                        if (!registry.any_of<GAME::InvulnerabilityState>(b))
+                        {
+                            auto& playerHealth = registry.get<Health>(b);
+                            playerHealth.currentHealth--;
+                            printf("Player Health: %d\n", playerHealth.currentHealth);
+                            registry.emplace<GAME::InvulnerabilityState>(b);
+                            registry.get<GAME::InvulnerabilityState>(b).cooldown = (*config).at("Player").at("invulnPeriod").as<int>();
+                        }
+                    }
+                    if (registry.all_of<Enemy>(b) && registry.all_of<Player>(a))
+                    {
+                        if (!registry.any_of<GAME::InvulnerabilityState>(a))
+                        {
+                            auto& playerHealth = registry.get<Health>(a);
+                            playerHealth.currentHealth--;
+                            printf("Player Health: %d\n", playerHealth.currentHealth);
+                            registry.emplace<GAME::InvulnerabilityState>(a);
+                            registry.get<GAME::InvulnerabilityState>(a).cooldown = (*config).at("Player").at("invulnPeriod").as<int>();
+                        }
+                    }
+                }
+            }
+        }
+
+        // check the status of all enemy entities that have a Health component.
+        auto enemyHealthView = registry.view<Enemy, Health>();
+        for (auto enemyEntity : enemyHealthView)
+        {
+            auto& healthComponent = enemyHealthView.get<Health>(enemyEntity);
+            if (healthComponent.currentHealth <= 0)
+            {
+                registry.emplace_or_replace<ToDestroy>(enemyEntity);
+            }
+        }
+
+        // Check a view of all entities tagged as Enemy 
+        auto enemyView = registry.view<Enemy>();
+        if (enemyView.begin() == enemyView.end()) // if that's empty
+        {
+            if (!registry.ctx().contains<GameOver>())
+                registry.ctx().emplace<GameOver>();
+            printf("You win, good job!\n");
+        }
+
+        // Destroy all the things tagged with ToDestroy (take a snapshot first)
+        std::vector<entt::entity> destroySnapshot;
+        destroySnapshot.reserve(std::distance(registry.view<ToDestroy>().begin(), registry.view<ToDestroy>().end()));
+        for (auto e : registry.view<ToDestroy>()) destroySnapshot.push_back(e);
+
+        for (auto entity : destroySnapshot)
+        {
+            if (registry.all_of<RENDERING::MeshCollection>(entity))
+            {
+                auto& meshCollection = registry.get<RENDERING::MeshCollection>(entity);
+                for (auto meshEntity : meshCollection.entities)
+                {
+                    registry.destroy(meshEntity);
+                }
+            }
+            registry.destroy(entity);
+        }
+
+        // Update gameplay for player entities before copying transforms to GPU instances
+        auto playerView = registry.view<Player, RENDERING::Transform>();
+        for (auto playerEntity : playerView)
+        {
+            UpdatePlayerComponent(registry, playerEntity);
+        }
+
+        // system that checks all Player entities 
+        auto playerHealthView = registry.view<Player, Health>();
+        for (auto playerHealthEntity : playerHealthView)
+        {
+            auto& healthComponent = playerHealthView.get<Health>(playerHealthEntity);
+            if (healthComponent.currentHealth <= 0)
+            {
+                if (!registry.ctx().contains<GAME::GameOver>())
+                    registry.ctx().emplace<GAME::GameOver>();
+                printf("You lose, game over\n");
+            }
+        }
+
+        // update entity Transforms based on their Velocity
+        auto velocityView = registry.view<RENDERING::Transform, Velocity>();
+        for (auto entity : velocityView)
+        {
+            auto& transformComponent = velocityView.get<RENDERING::Transform>(entity);
+            auto& velocityComponent = velocityView.get<Velocity>(entity);
+
+            transformComponent.world.row4.x += velocityComponent.velocity.x * deltaTime;
+            transformComponent.world.row4.y += velocityComponent.velocity.y * deltaTime;
+            transformComponent.world.row4.z += velocityComponent.velocity.z * deltaTime;
+        }
+
+        // Copy transforms to GPU instances
+        auto view = registry.view<RENDERING::Transform, RENDERING::MeshCollection>();
+        for (auto entity : view)
+        {
+            auto& transform = view.get<RENDERING::Transform>(entity);
+            auto& meshCollection = view.get<RENDERING::MeshCollection>(entity);
+            for (auto meshEntity : meshCollection.entities)
+            {
+                if (auto vecEntity = registry.try_get<std::vector<RENDERING::GPUInstance>>(meshEntity))
+                {
+                    for (auto& instance : *vecEntity)
+                    {
+                        instance.transform = transform.world;
+                    }
+                }
+                else if (auto singleEntity = registry.try_get<RENDERING::GPUInstance>(meshEntity))
+                {
+                    singleEntity->transform = transform.world;
+                }
+            }
+        }
     }
 }

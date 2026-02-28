@@ -24,10 +24,19 @@ namespace RENDERING
         resources.emplace_back();
         auto& newResourses = resources.back();
 
-        RENDERING::RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(
-            *RENDERER_HELPERS::GetGlobalRenderer(), vertices, index,
-            newResourses.vertexBuffer, newResourses.vertexBufferMemory,
-            newResourses.indexBuffer, newResourses.indexBufferMemory, newResourses.indexCount);
+        RendererComponent* renderer = RENDERER_HELPERS::GetGlobalRenderer();
+        if (renderer)
+        {
+            RENDERING::RENDERER_HELPERS::Memory::CreateVertexAndIndexBuffersFor(
+                *renderer, vertices, index,
+                newResourses.vertexBuffer, newResourses.vertexBufferMemory,
+                newResourses.indexBuffer, newResourses.indexBufferMemory, newResourses.indexCount);
+        }
+        else
+        {
+            // no renderer bound, so GPU buffers can't be created.
+            printf("MeshManager::LoadMesh warning: no bound RendererComponent; GPU buffers not created for mesh '%s'\n", name.c_str());
+        }
 
         // move CPU data into the same element
         newResourses.vertices = std::move(vertices);

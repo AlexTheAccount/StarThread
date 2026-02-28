@@ -40,14 +40,16 @@ void GAME::RunMainLoop(entt::registry& registry)
             if (!glfwWindowShouldClose(renderer.window))
                 anyWindowOpen = true;
 
+            // Bind renderer early so UI callbacks can access it
+            RENDERING::RENDERER_HELPERS::BindRenderer(&renderer);
+
             // Start ImGui frame (if initialized)
             if (UI::ImguiLayer* imguiPtr = registry.ctx().find<UI::ImguiLayer>(); imguiPtr && imguiPtr->IsInitialized())
             {
                 UI::RenderUI(registry, entity);
             }
 
-            // Bind renderer and issue draw for this instance
-            RENDERING::RENDERER_HELPERS::BindRenderer(&renderer);
+            // Issue draw for this instance
             RENDERING::RENDERER_HELPERS::RenderFor(renderer);
             RENDERING::RENDERER_HELPERS::UnbindRenderer();
         }

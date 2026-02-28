@@ -165,11 +165,30 @@ namespace RENDERING::RENDERER_HELPERS
             {
                 printf("Warning: no descriptor set bound; draw calls may be invalid\n");
             }
+            
+            Registry& registry = ENGINE::GlobalRegistry();
+
+            // Query camera components on entities
+            auto cameraView = registry.view<RENDERING::Camera>();
+            if (!cameraView.empty())
+            {
+                entt::entity cameraEntity = *cameraView.begin();
+                const RENDERING::Camera& camera = cameraView.get<RENDERING::Camera>(cameraEntity);
+
+                // update camera UBO (binding 0 expects View + Projection)
+                RENDERING::RENDERER_HELPERS::UpdateCameraUBO(rendererComponent, camera.view, camera.projection);
+            }
+            else
+            {
+                // fallback identity:
+                printf("No Camera component found; using identity matrices for view and projection\n");
+                GW::MATH::GMATRIXF identity = GW::MATH::GIdentityMatrixF;
+                RENDERING::RENDERER_HELPERS::UpdateCameraUBO(rendererComponent, identity, identity);
+            }
 
             // iterate entities and draw
-            Registry& registry = ENGINE::GlobalRegistry();
             auto view = registry.view<RENDERING::MeshHandle, RENDERING::Transform>();
-            for (auto entity : view) // view has a ghost error, can be ignored
+            for (auto entity : view)
             {
                 const auto& [meshHandle, transform] = view.get<RENDERING::MeshHandle, RENDERING::Transform>(entity);
 
@@ -182,8 +201,8 @@ namespace RENDERING::RENDERER_HELPERS
                 vkCmdBindVertexBuffers(command, 0, 1, &vertexBuffer, &offset);
                 vkCmdBindIndexBuffer(command, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                // push model matrix
-                vkCmdPushConstants(command, rendererComponent.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GW::MATH::GMATRIXF), &transform.world);
+                // update object UBO (binding 1 expects World)
+                RENDERING::RENDERER_HELPERS::UpdateObjectUBO(rendererComponent, transform.world);
 
                 vkCmdDrawIndexed(command, static_cast<uint32_t>(mesh->indexCount), 1, 0, 0, 0);
             }
@@ -386,15 +405,26 @@ namespace RENDERING::RENDERER_HELPERS
         }
 
         // Destroy UBO / buffers 
-        if (rendererComponent.uniformBuffer != VK_NULL_HANDLE)
+        if (rendererComponent.cameraUniformBuffer != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(rendererComponent.device, rendererComponent.uniformBuffer, nullptr);
-            rendererComponent.uniformBuffer = VK_NULL_HANDLE;
+            vkDestroyBuffer(rendererComponent.device, rendererComponent.cameraUniformBuffer, nullptr);
+            rendererComponent.cameraUniformBuffer = VK_NULL_HANDLE;
         }
-        if (rendererComponent.uniformBufferMemory != VK_NULL_HANDLE)
+        if (rendererComponent.cameraUniformBufferMemory != VK_NULL_HANDLE)
         {
-            vkFreeMemory(rendererComponent.device, rendererComponent.uniformBufferMemory, nullptr);
-            rendererComponent.uniformBufferMemory = VK_NULL_HANDLE;
+            vkFreeMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory, nullptr);
+            rendererComponent.cameraUniformBufferMemory = VK_NULL_HANDLE;
+        }
+
+        if (rendererComponent.objectUniformBuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(rendererComponent.device, rendererComponent.objectUniformBuffer, nullptr);
+            rendererComponent.objectUniformBuffer = VK_NULL_HANDLE;
+        }
+        if (rendererComponent.objectUniformBufferMemory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory, nullptr);
+            rendererComponent.objectUniformBufferMemory = VK_NULL_HANDLE;
         }
 
         // Destroy texture image, view, and memory 
@@ -457,20 +487,20 @@ namespace RENDERING::RENDERER_HELPERS
 
     void UpdateUniformsFor(RendererComponent& rendererComponent, const void* data, size_t size)
     {
-        if (rendererComponent.uniformBuffer == VK_NULL_HANDLE || rendererComponent.uniformBufferMemory == VK_NULL_HANDLE) return;
+        if (rendererComponent.cameraUniformBuffer == VK_NULL_HANDLE || rendererComponent.cameraUniformBufferMemory == VK_NULL_HANDLE) return;
 
         VkMemoryRequirements memReq{};
-        vkGetBufferMemoryRequirements(rendererComponent.device, rendererComponent.uniformBuffer, &memReq);
+        vkGetBufferMemoryRequirements(rendererComponent.device, rendererComponent.cameraUniformBuffer, &memReq);
         size_t copySize = (size <= memReq.size) ? size : memReq.size;
 
         void* mapped = nullptr;
-        VkResult res = vkMapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory, 0, copySize, 0, &mapped);
+        VkResult res = vkMapMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory, 0, copySize, 0, &mapped);
         if (res != VK_SUCCESS || mapped == nullptr) {
             printf("vkMapMemory failed when updating UBO: %d\n", res);
             return;
         }
         std::memcpy(mapped, data, copySize);
-        vkUnmapMemory(rendererComponent.device, rendererComponent.uniformBufferMemory);
+        vkUnmapMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory);
     }
 
     void UpdateUniforms(const void* data, size_t size)
@@ -641,5 +671,22 @@ namespace RENDERING::RENDERER_HELPERS
         RendererComponent* rendererComponent = GetBoundRenderer();
         if (!rendererComponent) throw std::runtime_error("No renderer for EndSingleTimeCommands");
         EndSingleTimeCommandsFor(*rendererComponent, commandBuffer);
+    }
+
+    void UpdateCameraUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& view, const GW::MATH::GMATRIXF& projection)
+    {
+        struct CameraData { GW::MATH::GMATRIXF View; GW::MATH::GMATRIXF Projection; } cam{ view, projection };
+        void* mapped = nullptr;
+        vkMapMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory, 0, sizeof(cam), 0, &mapped);
+        memcpy(mapped, &cam, sizeof(cam));
+        vkUnmapMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory);
+    }
+
+    void UpdateObjectUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& world)
+    {
+        void* mapped = nullptr;
+        vkMapMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory, 0, sizeof(world), 0, &mapped);
+        memcpy(mapped, &world, sizeof(world));
+        vkUnmapMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory);
     }
 } // namespace RENDERER_HELPERS

@@ -289,27 +289,26 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             return false;
         }
 
-        // Create uniform buffer
+        // Create uniform buffers 
         {
-            VkDeviceSize uboSize = sizeof(RENDERING::GPU_CBUFFER);
-            try
-            {
-                RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, uboSize,
-                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    rendererComponent.uniformBuffer,
-                    rendererComponent.uniformBufferMemory);
-            }
-            catch (const std::exception& exception)
-            {
-                printf("Failed to create uniform buffer: %s\n", exception.what());
-                vkDestroyDescriptorPool(rendererComponent.device, rendererComponent.descriptorPool, nullptr);
-                rendererComponent.descriptorPool = VK_NULL_HANDLE;
-                vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);
-                vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
-                return false;
-            }
+            // Sizes
+            VkDeviceSize matrixSize = sizeof(GW::MATH::GMATRIXF);
+            VkDeviceSize cameraSize = matrixSize * 2; // View + Projection
+            VkDeviceSize objectSize = matrixSize;     // World
+
+            // camera UBO
+            RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, cameraSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                rendererComponent.cameraUniformBuffer,
+                rendererComponent.cameraUniformBufferMemory);
+
+            // object UBO
+            RENDERING::RENDERER_HELPERS::Memory::CreateBufferFor(rendererComponent, objectSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                rendererComponent.objectUniformBuffer,
+                rendererComponent.objectUniformBufferMemory);
         }
 
         // create textureSampler
@@ -351,12 +350,20 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
         // Update descriptor sets
         {
-            VkDeviceSize uboSize = sizeof(RENDERING::GPU_CBUFFER);
+            // match the buffer sizes 
+            VkDeviceSize matrixSize = sizeof(GW::MATH::GMATRIXF);
+            VkDeviceSize cameraSize = matrixSize * 2; // View + Projection
+            VkDeviceSize objectSize = matrixSize;     // World
 
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = rendererComponent.uniformBuffer;
-            bufferInfo.offset = 0;
-            bufferInfo.range = uboSize;
+            VkDescriptorBufferInfo cameraBufferInfo{};
+            cameraBufferInfo.buffer = rendererComponent.cameraUniformBuffer;
+            cameraBufferInfo.offset = 0;
+            cameraBufferInfo.range = cameraSize;
+
+            VkDescriptorBufferInfo objectBufferInfo{};
+            objectBufferInfo.buffer = rendererComponent.objectUniformBuffer;
+            objectBufferInfo.offset = 0;
+            objectBufferInfo.range = objectSize;
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.sampler = rendererComponent.textureSampler;
@@ -365,23 +372,23 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
             std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
-            // binding 0 -> bufferInfo0
+            // binding 0 -> camera UBO
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = rendererComponent.descriptorSet;
             descriptorWrites[0].dstBinding = 0;
             descriptorWrites[0].dstArrayElement = 0;
             descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
+            descriptorWrites[0].pBufferInfo = &cameraBufferInfo;
 
-            // binding 1 -> bufferInfo1
+            // binding 1 -> object UBO
             descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[1].dstSet = rendererComponent.descriptorSet;
             descriptorWrites[1].dstBinding = 1;
             descriptorWrites[1].dstArrayElement = 0;
             descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pBufferInfo = &bufferInfo;
+            descriptorWrites[1].pBufferInfo = &objectBufferInfo;
 
             // binding 2 -> imageInfo
             descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

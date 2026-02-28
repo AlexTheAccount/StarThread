@@ -151,8 +151,10 @@ namespace RENDERING
         VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
         VkBuffer indexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
-        VkBuffer uniformBuffer = VK_NULL_HANDLE;
-        VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
+        VkBuffer cameraUniformBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory cameraUniformBufferMemory = VK_NULL_HANDLE;
+        VkBuffer objectUniformBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory objectUniformBufferMemory = VK_NULL_HANDLE;
         VkSampler textureSampler = VK_NULL_HANDLE;
         VkImage textureImage = VK_NULL_HANDLE;
         VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
@@ -259,6 +261,10 @@ namespace RENDERING
         // Draw frame:
         void DrawFrame();
         void DrawFrameFor(RendererComponent& rendererComponent);
+
+        // Uniform buffer updates
+        void UpdateCameraUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& view, const GW::MATH::GMATRIXF& projection);
+        void UpdateObjectUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& world);
 
         // Device-level helpers
         namespace Device
