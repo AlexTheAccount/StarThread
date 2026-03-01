@@ -22,42 +22,7 @@ namespace GAME
         double& deltaTime = registry.ctx().get<DeltaTime>().dtSec;
 
         // Recalculate world matrices for any transforms that need it
-        {
-            auto transformView = registry.view<RENDERING::Transform>();
-            for (auto entity : transformView)
-            {
-                auto& t = transformView.get<RENDERING::Transform>(entity);
-                if (!t.recomputeWorld) continue;
-
-                // collect chain up to root (or until an ancestor doesn't need recompute)
-                std::vector<entt::entity> stack;
-                entt::entity cur = entity;
-                while (cur != entt::null)
-                {
-                    auto& ct = registry.get<RENDERING::Transform>(cur);
-                    // break if ancestor already up-to-date
-                    if (!ct.recomputeWorld && cur != entity) break;
-                    stack.push_back(cur);
-                    // cycle guard
-                    if (ct.parent == cur) break;
-                    cur = ct.parent;
-                }
-
-                // compute from root -> leaf
-                for (auto it = stack.rbegin(); it != stack.rend(); ++it)
-                {
-                    auto& ct = registry.get<RENDERING::Transform>(*it);
-                    ct.RecalculateWorld();
-
-                    if (ct.parent != entt::null)
-                    {
-                        // multiply parent world into this world (parent * local)
-                        auto& pt = registry.get<RENDERING::Transform>(ct.parent);
-                        GW::MATH::GMatrix::MultiplyMatrixF(pt.world, ct.world, ct.world);
-                    }
-                }
-            }
-        }
+        RENDERING::UpdateTransforms(registry);
 
         // Collision Detection System for OBBF Colliders
         auto collisions = registry.view<RENDERING::Transform, RENDERING::MeshCollection>();
@@ -247,5 +212,13 @@ namespace GAME
                 }
             }
         }
+
+        // Update camera view/projection from camera transforms and upload to GPU
+        auto cameraView = registry.view<RENDERING::Camera>();
+        for (auto cameraEntity : cameraView)
+        {
+            RENDERING::CAMERA_SYSTEM::UpdateCameraAndUpload(registry, cameraEntity);
+        }
     }
+    
 }

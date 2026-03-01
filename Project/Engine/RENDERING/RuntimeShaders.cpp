@@ -47,7 +47,7 @@ namespace RENDERING::RENDERER_HELPERS::Utilities
             std::string shellCommand = "cmd /C " + command + " 2>&1";
             printf("Running shell command: %s\n", shellCommand.c_str());
 
-            FILE* pipe = _popen(shellCommand.c_str(), "rendererComponent");
+            FILE* pipe = _popen(shellCommand.c_str(), "r");
             if (!pipe)
             {
                 printf("Failed to run dxc command: %s\n", command.c_str());

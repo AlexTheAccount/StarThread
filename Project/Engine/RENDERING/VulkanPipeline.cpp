@@ -178,7 +178,7 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
         VkPipelineMultisampleStateCreateInfo multisampling{};
@@ -199,8 +199,8 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE;
-        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthTestEnable = VK_FALSE;  // debugging
+        depthStencil.depthWriteEnable = VK_FALSE; // debugging
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
@@ -450,6 +450,42 @@ namespace RENDERING::RENDERER_HELPERS::Pipeline
             vkDestroyShaderModule(rendererComponent.device, vertexShaderModule, nullptr);
             return false;
         }
+
+        auto FormatSize = [](VkFormat format) -> uint32_t 
+        {
+            switch (format) 
+            {
+                case VK_FORMAT_R32G32B32_SFLOAT: return 12;
+                case VK_FORMAT_R32G32_SFLOAT:    return 8;
+                case VK_FORMAT_R8G8B8A8_UNORM:   return 4;
+                default: return 0;
+            }
+        };
+
+        // verify attributes fit inside stride and are consistent
+        bool vertexLayoutOk = true;
+        for (uint32_t count = 0; count < vertexInputInfo.vertexAttributeDescriptionCount; ++count) 
+        {
+            const VkVertexInputAttributeDescription& attribute = vertexInputInfo.pVertexAttributeDescriptions[count];
+            uint32_t size = FormatSize(attribute.format);
+            if (size == 0) { vertexLayoutOk = false; printf("Warning: unknown vertex attribute format for location %u\n", attribute.location); break; }
+            if (attribute.offset + size > bindingDescription.stride) 
+            {
+                vertexLayoutOk = false;
+                printf("Warning: vertex attribute (loc %u) overruns stride: offset=%u size=%u stride=%u\n", 
+                    attribute.location, attribute.offset, size, bindingDescription.stride);
+                break;
+            }
+        }
+        if (!vertexLayoutOk) 
+        {
+            // keep pipeline alive, but WARN
+            printf("Vertex input layout validation FAILED for pipeline (device pipeline handle = %p)\n", 
+                (void*)rendererComponent.graphicsPipeline);
+        }
+
+        // give pipeline a debug name
+        SetDebugName(rendererComponent.device, VK_OBJECT_TYPE_PIPELINE, (uint64_t)rendererComponent.graphicsPipeline, "MainGraphicsPipeline");
 
         vkDestroyDescriptorSetLayout(rendererComponent.device, descriptorSetLayout, nullptr);
         vkDestroyShaderModule(rendererComponent.device, fragmentShaderModule, nullptr);

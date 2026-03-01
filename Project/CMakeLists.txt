@@ -67,6 +67,11 @@ target_sources(StarThread PRIVATE ${C_GAME_FILES})
 target_sources(StarThread PRIVATE ${C_ENGINE_FILES})
 target_sources(StarThread PRIVATE ${SHADER_FILES})
 
+# Use the precompiled header
+target_precompile_headers(StarThread PRIVATE
+  "${CMAKE_SOURCE_DIR}/Game/precompiled.h"
+)
+
 set(IMGUI_SOURCES
   "${imgui_SOURCE_DIR}/imgui.cpp"
   "${imgui_SOURCE_DIR}/imgui_draw.cpp"
@@ -143,8 +148,8 @@ source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${C_GAME_FILES} ${C_ENGINE_FILES} ${
 # swaps "ALL_BUILD" with project as startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT StarThread)
 
-# add a preprocessor definition so target architecture can be detected
-target_compile_definitions(StarThread PRIVATE _AMD64_)
+# defines for windows and unicode support
+target_compile_definitions(StarThread PRIVATE _AMD64_ UNICODE _UNICODE)
 
 # tells visual studio to launch from the binary output directory
 set_target_properties(StarThread PROPERTIES

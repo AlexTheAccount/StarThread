@@ -174,7 +174,11 @@ namespace RENDERING::RENDERER_HELPERS
             {
                 entt::entity cameraEntity = *cameraView.begin();
                 const RENDERING::Camera& camera = cameraView.get<RENDERING::Camera>(cameraEntity);
-
+                
+                // Debug: print camera view and projection matrices
+                printf("Camera.view.row1 = %f %f %f %f\n", camera.view.row1.x, camera.view.row1.y, camera.view.row1.z, camera.view.row1.w);
+                printf("Camera.proj.row1 = %f %f %f %f\n", camera.projection.row1.x, camera.projection.row1.y, camera.projection.row1.z, camera.projection.row1.w);
+                
                 // update camera UBO (binding 0 expects View + Projection)
                 RENDERING::RENDERER_HELPERS::UpdateCameraUBO(rendererComponent, camera.view, camera.projection);
             }
@@ -192,14 +196,22 @@ namespace RENDERING::RENDERER_HELPERS
             {
                 const auto& [meshHandle, transform] = view.get<RENDERING::MeshHandle, RENDERING::Transform>(entity);
 
+                // DEBUG: print entity and mesh information
+                printf("Draw loop: entity=%u meshId=%u\n", static_cast<uint32_t>(entity), meshHandle.id);
                 const auto* mesh = MeshManager::Instance().GetMesh(meshHandle.id);
-                if (!mesh || mesh->vertexBuffer == VK_NULL_HANDLE || mesh->indexBuffer == VK_NULL_HANDLE)
-                    continue;
+                if (!mesh) { printf("  GetMesh returned null for id=%u\n", meshHandle.id); continue; }
+                printf("  mesh: vb=%p ib=%p indexCount=%zu\n", (void*)mesh->vertexBuffer, (void*)mesh->indexBuffer, mesh->indexCount);
 
                 VkBuffer vertexBuffer = mesh->vertexBuffer;
                 VkDeviceSize offset = 0;
                 vkCmdBindVertexBuffers(command, 0, 1, &vertexBuffer, &offset);
                 vkCmdBindIndexBuffer(command, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+                // Debug: print transform information
+                printf("Entity %u world.row1 = %f %f %f %f\n", static_cast<uint32_t>(entity),
+                    transform.world.row1.x, transform.world.row1.y, transform.world.row1.z, transform.world.row1.w);
+                printf("Entity %u world.row4 = %f %f %f %f\n", static_cast<uint32_t>(entity),
+                    transform.world.row4.x, transform.world.row4.y, transform.world.row4.z, transform.world.row4.w);
 
                 // update object UBO (binding 1 expects World)
                 RENDERING::RENDERER_HELPERS::UpdateObjectUBO(rendererComponent, transform.world);
@@ -675,7 +687,14 @@ namespace RENDERING::RENDERER_HELPERS
 
     void UpdateCameraUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& view, const GW::MATH::GMATRIXF& projection)
     {
-        struct CameraData { GW::MATH::GMATRIXF View; GW::MATH::GMATRIXF Projection; } cam{ view, projection };
+        // transpose here before upload
+        GW::MATH::GMATRIXF viewT = GW::MATH::GIdentityMatrixF;
+        GW::MATH::GMATRIXF projT = GW::MATH::GIdentityMatrixF;
+        GW::MATH::GMatrix::TransposeF(view, viewT);
+        GW::MATH::GMatrix::TransposeF(projection, projT);
+
+        struct CameraData { GW::MATH::GMATRIXF View; GW::MATH::GMATRIXF Projection; } cam{ viewT, projT };
+
         void* mapped = nullptr;
         vkMapMemory(rendererComponent.device, rendererComponent.cameraUniformBufferMemory, 0, sizeof(cam), 0, &mapped);
         memcpy(mapped, &cam, sizeof(cam));

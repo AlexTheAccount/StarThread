@@ -43,4 +43,48 @@ namespace RENDERING
         // store the renderer entity in the registry context for easy lookup:
         registry.ctx().emplace<entt::entity>(rendererEntity);
     }
+
+    void UpdateTransforms(entt::registry& registry)
+    {
+        auto transformView = registry.view<RENDERING::Transform>();
+        for (auto entity : transformView)
+        {
+            auto& t = transformView.get<RENDERING::Transform>(entity);
+            if (!t.recomputeWorld) continue;
+
+            // collect chain up to root (or until an ancestor doesn't need recompute)
+            std::vector<entt::entity> stack;
+            entt::entity cur = entity;
+            while (cur != entt::null)
+            {
+                auto& ct = registry.get<RENDERING::Transform>(cur);
+                // break if ancestor already up-to-date (and not the starting entity)
+                if (!ct.recomputeWorld && cur != entity) break;
+                stack.push_back(cur);
+                // cycle guard
+                if (ct.parent == cur) break;
+                cur = ct.parent;
+            }
+
+            // compute from root -> leaf
+            for (auto it = stack.rbegin(); it != stack.rend(); ++it)
+            {
+                auto& ct = registry.get<RENDERING::Transform>(*it);
+                ct.RecalculateWorld();
+
+                if (ct.parent != entt::null)
+                {
+                    // multiply parent world into this world (parent * local)
+                    auto& pt = registry.get<RENDERING::Transform>(ct.parent);
+                    GW::MATH::GMatrix::MultiplyMatrixF(pt.world, ct.world, ct.world);
+                }
+
+                // Debug: print world rows for this transform after recalculation
+                printf("UpdateTransforms: entity=%u world.row1 = %f %f %f %f\n", static_cast<uint32_t>(*it),
+                       ct.world.row1.x, ct.world.row1.y, ct.world.row1.z, ct.world.row1.w);
+                printf("UpdateTransforms: entity=%u world.row4 = %f %f %f %f\n", static_cast<uint32_t>(*it),
+                       ct.world.row4.x, ct.world.row4.y, ct.world.row4.z, ct.world.row4.w);
+            }
+        }
+    }
 }

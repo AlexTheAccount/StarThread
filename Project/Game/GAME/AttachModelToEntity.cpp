@@ -92,12 +92,28 @@ namespace GAME
             registry.emplace<RENDERING::Material>(entity, RENDERING::Material{});
 
         // If the entity has no RENDERING::Transform, give it an identity transform
-        if (!registry.any_of<RENDERING::Transform>(entity))
+        if (registry.any_of<RENDERING::Transform>(entity))
+        {
+            RENDERING::Transform& transform = registry.get<RENDERING::Transform>(entity);
+            transform.recomputeWorld = true;
+            printf("AttachModelToEntity: entity %u already had Transform; position=%f %f %f %f recompute set\n",
+                   static_cast<uint32_t>(entity),
+                   transform.position.data[0], transform.position.data[1], transform.position.data[2], transform.position.data[3]);
+            // Ensure world matrix is immediately up-to-date so rendering in the same frame uses correct transform
+            RENDERING::UpdateTransforms(registry);
+        }
+        else
         {
             RENDERING::Transform transform{};
+            transform.position = GW::MATH::GVECTORF{{{0.0f, 0.0f, 0.0f, 1.0f}}};
             transform.world = GW::MATH::GIdentityMatrixF;
-            transform.recomputeWorld = false;
+            transform.recomputeWorld = true;
             registry.emplace<RENDERING::Transform>(entity, transform);
+            printf("AttachModelToEntity: emplaced identity Transform for entity %u; position=%f %f %f %f\n",
+                   static_cast<uint32_t>(entity),
+                   transform.position.data[0], transform.position.data[1], transform.position.data[2], transform.position.data[3]);
+            // Immediately compute world for the newly emplaced transform
+            RENDERING::UpdateTransforms(registry);
         }
     }
 }

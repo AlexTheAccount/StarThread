@@ -14,17 +14,19 @@ cbuffer ObjectBuffer : register(b1)
 struct VOut
 {
     float4 pos : SV_POSITION;
-    float2 texcoord : TEXCOORD;
+    float2 texcoord : TEXCOORD0;
 };
 
-VOut main(float4 pos : POSITION, float2 texcoord : TEXCOORD)
+VOut main(float3 inPos : POSITION, float2 inTex : TEXCOORD0)
 {
     VOut output;
+    
+    float4 worldPos = mul(World, float4(inPos, 1.0f));
+    float4 viewPos = mul(View, worldPos);
+    float4 clipPos = mul(Projection, viewPos);
 
-    output.pos = mul(pos, World);
-    output.pos = mul(output.pos, View);
-    output.pos = mul(output.pos, Projection);
-    output.texcoord = texcoord;
+    output.pos = clipPos;
+    output.texcoord = inTex;
 
     return output;
 }

@@ -37,7 +37,7 @@ namespace RENDERING
         GW::MATH::GQUATERNIONF rotation{ {0.0f, 0.0f, 0.0f, 1.0f} };
         GW::MATH::GVECTORF scale{ {1.0f, 1.0f, 1.0f, 0.0f} };
 
-        GW::MATH::GMATRIXF world{};
+        GW::MATH::GMATRIXF world = GW::MATH::GIdentityMatrixF;
         bool recomputeWorld = true;
 
         void SetPosition(const GW::MATH::GVECTORF & newPosition) { position = newPosition; recomputeWorld = true; }
@@ -78,9 +78,20 @@ namespace RENDERING
         }
         void RecalculateWorld()
         {
-            GW::MATH::GMATRIXF identity = GW::MATH::GIdentityMatrixF;
+            // Debug: show local position entering recalculation
+            printf("RecalculateWorld: position = %f %f %f %f recompute=%d\n",
+                   position.data[0], position.data[1], position.data[2], position.data[3],
+                   recomputeWorld ? 1 : 0);
+
             GW::MATH::GMATRIXF translate = GW::MATH::GIdentityMatrixF;
-            GW::MATH::GMatrix::TranslateGlobalF(identity, position, translate);
+            translate.row4.x = position.data[0];
+            translate.row4.y = position.data[1];
+            translate.row4.z = position.data[2];
+            translate.row4.w = 1.0f;
+
+            // Debug: show resulting translate matrix row4 (translation)
+            printf("RecalculateWorld: translate.row4 = %f %f %f %f\n",
+                   translate.row4.x, translate.row4.y, translate.row4.z, translate.row4.w);
 
             world = translate;
 
@@ -227,6 +238,7 @@ namespace RENDERING
     // *** FUNCTIONS *** //
     void InitializeGraphics(entt::registry& registry);
     void SetDebugName(VkDevice device, VkObjectType objectType, uint64_t objectHandle, const char* name);
+    void UpdateTransforms(entt::registry& registry);
 
     // *** RENDERER HELPERS *** //
     namespace RENDERER_HELPERS

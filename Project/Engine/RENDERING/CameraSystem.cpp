@@ -12,17 +12,25 @@ namespace RENDERING::CAMERA_SYSTEM
         auto camera = registry.create();
 
         // Set projection matrix
-        GW::MATH::GMATRIXF projection = GIdentityMatrixF;
+        GMATRIXF projection = GIdentityMatrixF;
 
+        printf("Before call: fov=%f aspect=%f near=%f far=%f\n", fovRadians, aspect, nearZ, farZ);
         // build perspective projection matrix
         GMatrix::ProjectionVulkanRHF(fovRadians, aspect, nearZ, farZ, projection);
+
+        // Debug: show camera projection details
+        printf("CreateCamera: fov=%f aspect=%f near=%f far=%f\n", fovRadians, aspect, nearZ, farZ);
+        printf("CreateCamera: projection.row1 = %f %f %f %f\n",
+               projection.row1.x, projection.row1.y, projection.row1.z, projection.row1.w);
+        printf("CreateCamera: projection.row4 = %f %f %f %f\n",
+               projection.row4.x, projection.row4.y, projection.row4.z, projection.row4.w);
 
         registry.emplace<RENDERING::Camera>(camera, RENDERING::Camera{ GIdentityMatrixF, projection });
 
         // simple spatial representation on the camera 
         RENDERING::Transform transform;
-        transform.position = { {0.0f, 0.0f, -6.0f, 0.0f} };
-        transform.rotation = { {0.0f, 0.0f, 0.0f, 0.0f} };
+        transform.position = { {0.0f, 0.0f, -6.0f, 1.0f} };
+        transform.rotation = { {0.0f, 0.0f, 0.0f, 1.0f} };
         transform.scale = { {1.0f, 1.0f, 1.0f, 0.0f} };
         registry.emplace<RENDERING::Transform>(camera, transform);
 
@@ -32,11 +40,14 @@ namespace RENDERING::CAMERA_SYSTEM
     // Per-frame: update camera view from its transform and upload into uniform buffer
     void UpdateCameraAndUpload(entt::registry& registry, entt::entity cameraEntity)
     {
-        auto* renderer = RENDERER_HELPERS::GetGlobalRenderer();
-        if (!renderer) return;
-
+        // compute view from transform and store in the camera component regardless of bound renderer
         auto& camera = registry.get<RENDERING::Camera>(cameraEntity);
         auto& transform = registry.get<RENDERING::Transform>(cameraEntity);
+
+        // Debug: show camera transform position before building world matrix
+        printf("UpdateCameraAndUpload: camera position = %f %f %f %f recompute=%d\n",
+               transform.position.data[0], transform.position.data[1], transform.position.data[2], transform.position.data[3],
+               transform.recomputeWorld ? 1 : 0);
 
         // Build camera world matrix from transform
         GW::MATH::GMATRIXF world = GIdentityMatrixF;
@@ -54,14 +65,28 @@ namespace RENDERING::CAMERA_SYSTEM
         GW::MATH::GMatrix::TransposeF(view, viewT);
         GW::MATH::GMatrix::TransposeF(camera.projection, projT);
 
+        // store computed view back into the Camera component so DrawFrameFor sees it
         camera.view = view;
 
-        // Prepare GPU cbuffer
-        GPU_CBUFFER cbuffer{};
-        cbuffer.World = GIdentityMatrixF;
-        cbuffer.View = viewT;
-        cbuffer.Projection = projT;
+        // Debug: show computed camera matrices
+        printf("UpdateCameraAndUpload: computed Camera.view.row1 = %f %f %f %f\n",
+               camera.view.row1.x, camera.view.row1.y, camera.view.row1.z, camera.view.row1.w);
+        printf("UpdateCameraAndUpload: Camera.proj.row1 = %f %f %f %f\n",
+               camera.projection.row1.x, camera.projection.row1.y, camera.projection.row1.z, camera.projection.row1.w);
 
-        RENDERER_HELPERS::UpdateUniforms(&cbuffer, sizeof(cbuffer));
+        // Only upload to GPU if a renderer is bound
+        if (RENDERING::RENDERER_HELPERS::GetGlobalRenderer())
+        {
+            GPU_CBUFFER cbuffer{};
+            cbuffer.World = GIdentityMatrixF;
+            cbuffer.View = viewT;
+            cbuffer.Projection = projT;
+
+            UpdateUniforms(&cbuffer, sizeof(cbuffer));
+        }
+        else
+        {
+            printf("UpdateCameraAndUpload: no renderer bound, skipping GPU upload (but camera.view stored in registry)\n");
+        }
     }
 }

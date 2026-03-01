@@ -38,6 +38,12 @@ namespace RENDERING
             printf("MeshManager::LoadMesh warning: no bound RendererComponent; GPU buffers not created for mesh '%s'\n", name.c_str());
         }
 
+        printf("MeshManager::LoadMesh: name='%s' assigned id=%zu vb=0x%llx ib=0x%llx indexCount=%zu\n",
+               name.c_str(), resources.size() - 1,
+               (unsigned long long)newResourses.vertexBuffer,
+               (unsigned long long)newResourses.indexBuffer,
+               newResourses.indexCount);
+
         // move CPU data into the same element
         newResourses.vertices = std::move(vertices);
         newResourses.indices = std::move(index);

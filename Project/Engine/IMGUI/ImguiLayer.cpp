@@ -228,8 +228,8 @@ namespace UI
         ImGui_ImplVulkan_NewFrame();
         ImGui::NewFrame();
 
-        // Draw the space background
-        DrawSpaceBackground();
+        // Draw the space background (Disabled for debugging)
+        // DrawSpaceBackground();
 
         return true;
     }
