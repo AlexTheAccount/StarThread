@@ -5,21 +5,22 @@
 
 using namespace GAME;
 using namespace RENDERING;
+using namespace GW::MATH;
 
 
 void GAME::StartGame(entt::registry& registry)
 {
     auto manager = registry.create();
-    registry.emplace<GAME::GameManager>(manager);
+    registry.emplace<GameManager>(manager);
 
     // spawn player
     auto player = registry.create();
-    registry.emplace<GAME::Player>(player);
-    registry.emplace<RENDERING::Transform>(player);
+    registry.emplace<Player>(player);
+    registry.emplace<Transform>(player);
 
-    // set player transform to origin
-    auto& transform = registry.get<RENDERING::Transform>(player);
-    transform.position = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+    // set player transform
+    auto& transform = registry.get<Transform>(player);
+    transform.position = { { 0.0f, 0.0f, -10.0f, 1.0f } };
     transform.recomputeWorld = true;
 
     // populate PlayerShip stats from config if available
@@ -30,12 +31,12 @@ void GAME::StartGame(entt::registry& registry)
         {
             try
             {
-                GAME::PlayerShip playerShip;
+                PlayerShip playerShip;
                 playerShip.health.startHealth = (*config).at("Player").at("hitpoints").as<int>();
                 playerShip.health.currentHealth = playerShip.health.startHealth;
                 playerShip.speed.startSpeed = static_cast<int>((*config).at("Player").at("speed").as<float>());
                 playerShip.speed.currentSpeed = playerShip.speed.startSpeed;
-                registry.emplace<GAME::PlayerShip>(player, playerShip);
+                registry.emplace<PlayerShip>(player, playerShip);
 
                 // attach player model
                 std::string modelName = (*config).at("Player").at("model").as<std::string>();
@@ -44,20 +45,20 @@ void GAME::StartGame(entt::registry& registry)
             catch (...)
             {
                 printf("Failed to read player config; using defaults\n");
-                registry.emplace<GAME::PlayerShip>(player);
+                registry.emplace<PlayerShip>(player);
                 AttachModelToEntity(registry, player, "TestShip");
             }
         }
         else
         {
             // fallback model
-            registry.emplace<GAME::PlayerShip>(player);
+            registry.emplace<PlayerShip>(player);
             AttachModelToEntity(registry, player, "TestShip");
         }
     }
     else
     {
-        registry.emplace<GAME::PlayerShip>(player);
+        registry.emplace<PlayerShip>(player);
         AttachModelToEntity(registry, player, "TestShip");
     }
 }

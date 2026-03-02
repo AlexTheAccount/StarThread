@@ -21,9 +21,9 @@ VOut main(float3 inPos : POSITION, float2 inTex : TEXCOORD0)
 {
     VOut output;
     
-    float4 worldPos = mul(World, float4(inPos, 1.0f));
-    float4 viewPos = mul(View, worldPos);
-    float4 clipPos = mul(Projection, viewPos);
+    float4 worldPos = mul(float4(inPos, 1.0f), World);
+    float4 viewPos = mul(worldPos, View);
+    float4 clipPos = mul(viewPos, Projection);
 
     output.pos = clipPos;
     output.texcoord = inTex;

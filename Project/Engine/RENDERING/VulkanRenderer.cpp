@@ -703,9 +703,18 @@ namespace RENDERING::RENDERER_HELPERS
 
     void UpdateObjectUBO(RendererComponent& rendererComponent, const GW::MATH::GMATRIXF& world)
     {
+        // Transpose to match HLSL column-major matrix layout used by the shader
+        GW::MATH::GMATRIXF worldT = GW::MATH::GIdentityMatrixF;
+        GW::MATH::GMatrix::TransposeF(world, worldT);
+
         void* mapped = nullptr;
-        vkMapMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory, 0, sizeof(world), 0, &mapped);
-        memcpy(mapped, &world, sizeof(world));
+        VkResult res = vkMapMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory, 0, sizeof(worldT), 0, &mapped);
+        if (res != VK_SUCCESS || mapped == nullptr)
+        {
+            printf("vkMapMemory failed when updating object UBO: %d\n", res);
+            return;
+        }
+        std::memcpy(mapped, &worldT, sizeof(worldT));
         vkUnmapMemory(rendererComponent.device, rendererComponent.objectUniformBufferMemory);
     }
 } // namespace RENDERER_HELPERS
